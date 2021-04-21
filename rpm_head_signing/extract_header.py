@@ -19,7 +19,7 @@ def extract_header(input_path, header_out_path, digest_out_path):
             digest = digest.strip()
             if not digest:
                 continue
-            df.write("%s:%s\n" % (file_digestalgo, digest))
+            df.write("%s %s\n" % (file_digestalgo, digest))
 
     with open(input_path, "rb") as f:
         f.seek(hdr_start)

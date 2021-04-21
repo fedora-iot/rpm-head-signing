@@ -19,7 +19,7 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
         with open(ima_presigned_path, "rt") as f:
             for line in f.readlines():
                 line = line.strip()
-                (algo, digest, value) = line.split(':')
+                (algo, digest, value) = line.split(' ')
                 value = base64.b64decode(value)
                 fname = os.path.join(ima_presigned_tempdir, '%s_%s' % (algo, digest))
                 with open(fname, 'wt') as f:
