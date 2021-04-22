@@ -3,6 +3,9 @@ import base64
 import subprocess
 from tempfile import mkdtemp
 import os.path
+import shutil
+
+import six
 
 
 def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None):
@@ -22,7 +25,7 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
                 (algo, digest, value) = line.split(' ')
                 value = base64.b64decode(value)
                 fname = os.path.join(ima_presigned_tempdir, '%s_%s' % (algo, digest))
-                with open(fname, 'wt') as f:
+                with open(fname, 'wb') as f:
                     f.write(value)
 
     try:
@@ -42,7 +45,7 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
         )
     finally:
         if ima_presigned_tempdir:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(ima_presigned_tempdir, ignore_errors=True)
 
 
 if __name__ == '__main__':
