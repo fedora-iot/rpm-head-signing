@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import rpm
 from koji import (get_rpm_header, rpm_hdr_size, find_rpm_sighdr, RPM_TAG_FILEDIGESTALGO, RPM_FILEDIGESTALGO_IDS)
-import sys
 
 
 def extract_header(input_path, header_out_path, digest_out_path):
