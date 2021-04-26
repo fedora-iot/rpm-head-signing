@@ -36,7 +36,7 @@ RPMSIGTAG_FILESIGNATURES = 274
 
 
 # Koji doesn't support type 8 (string array) for returning
-def get_filesigs_from_rawhdr(raw_hdr):
+def __get_filesigs_from_rawhdr(raw_hdr):
     entry = raw_hdr.index.get(RPMSIGTAG_FILESIGNATURES)
     if entry is None:
         raise Exception("No file signatures found")
@@ -58,7 +58,7 @@ def get_filesigs_from_rawhdr(raw_hdr):
 def _extract_filesigs(rpm_path, output_path):
     sighdr = rip_rpm_sighdr(rpm_path)
     sighdr = RawHeader(sighdr)
-    filesigs = get_filesigs_from_rawhdr(sighdr)
+    filesigs = __get_filesigs_from_rawhdr(sighdr)
 
     rpm_hdr = get_rpm_header(rpm_path)
     diridxs = rpm_hdr[rpm.RPMTAG_DIRINDEXES]

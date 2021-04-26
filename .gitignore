@@ -2,3 +2,5 @@
 /ima_lookup.so
 /ima_calc_keyid
 /*.pem
+/rpm_head_signing.egg-info/
+*/__pycache__/
