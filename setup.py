@@ -9,6 +9,6 @@ setup(
         'koji',
         'rpm',
         'six',
-        'xattr',
+        'pyxattr',
     ]
 )
