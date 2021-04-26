@@ -4,3 +4,7 @@
 /*.pem
 /rpm_head_signing.egg-info/
 */__pycache__/
+*.rpm
+python-rpm_head_signing*
+BUILDROOT/
+
