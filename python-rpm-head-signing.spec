@@ -6,7 +6,7 @@
 
 Name:           python-rpm_head_signing
 Version:        0.1
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
 URL:            https://github.com/puiterwijk/rpm-head-signing
@@ -60,8 +60,8 @@ rm -rf $RPM_BUILD_ROOT
 %py3_install
 mkdir -p %{buildroot}%{_bindir}/
 install ima_calc_keyid %{buildroot}%{_bindir}/
-mkdir -p %{buildroot}%{_datadir}/%{srcname}/
-install ima_lookup.so %{buildroot}%{_datadir}/%{srcname}/
+mkdir -p %{buildroot}%{_libdir}/
+install ima_lookup.so %{buildroot}%{_libdir}
 
 
 %check
@@ -71,12 +71,15 @@ install ima_lookup.so %{buildroot}%{_datadir}/%{srcname}/
 %license LICENSE
 %{python3_sitelib}/%{srcname}/
 %{python3_sitelib}/%{srcname}-%{version}-py%{python3_version}.egg-info/
-%{_datadir}/%{srcname}/ima_lookup.so
+%{_libdir}/ima_lookup.so
 
 %files -n rpm_head_signing-tools
 %{_bindir}/ima_calc_keyid
 
 
 %changelog
+* Wed Apr 28 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 0.1-2
+- Moved ima_lookup.so to libdir
+
 * Mon Apr 26 2021 Patrick Uiterwijk <patrick@puiterwijk.org>
--
+- Initial packaging
