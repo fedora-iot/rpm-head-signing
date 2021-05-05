@@ -7,8 +7,13 @@ import shutil
 
 import six
 
+LOOKUP_PATH = '/usr/lib64/ima_lookup.so'
+
 
 def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None):
+    if ima_lookup_path is None:
+        ima_lookup_path = LOOKUP_PATH
+
     if ima_presigned_path is None:
         ima_presigned_tempdir = None
         ima_args = []
@@ -56,6 +61,8 @@ if __name__ == '__main__':
         ima_presigned_path = None
     elif len(sys.argv) == 5:
         ima_lookup_path = sys.argv[3]
+        if ima_lookup_path.lower() in ['-', 'none']:
+            ima_lookup_path = None
         ima_presigned_path = sys.argv[4]
     else:
         raise Exception("Call: %s <rpm-path> <header-signature> [ima_lookup.so_path] [ima_presigned_directory]")
