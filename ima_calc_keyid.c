@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // From the library
     char name[20];
     uint32_t keyid;
 
