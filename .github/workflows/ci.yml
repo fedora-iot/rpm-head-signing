@@ -1,0 +1,23 @@
+on:
+- push
+- pull_request
+
+name: Continuous integration
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install deps
+        run: |
+          dnf install -y python3-six python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio
+
+      - name: Build ima_lookup.so
+        run: |
+          make ima_lookup.so
+
+      - name: Run tests
+        run: python3 test.py
