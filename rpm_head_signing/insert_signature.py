@@ -34,6 +34,9 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
                     f.write(value)
 
     try:
+        env = {}
+        if ima_presigned_path is not None:
+            env['LD_PRELOAD'] = ima_lookup_path
         subprocess.check_call(
             [
                 'rpmsign',
@@ -44,9 +47,7 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
                 '--addsign',
                 rpm_path,
             ] + ima_args,
-            env={
-                'LD_PRELOAD': ima_lookup_path,
-            },
+            env=env,
         )
     finally:
         if ima_presigned_tempdir:
