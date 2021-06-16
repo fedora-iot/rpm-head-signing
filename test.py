@@ -92,7 +92,22 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue('Header V3 RSA' in res.stdout)
             self.assertTrue('15f712be: ok' in res.stdout.lower())
 
-    def test_insert_ima(self):
+    def test_insert_ima_rpmsign(self):
+        return self._test_insert_ima(
+            insert_signature_args={
+                'use_rpmsign': True,
+                'ima_lookup_path': os.path.join(os.path.abspath('.'), 'ima_lookup.so'),
+            }
+        )
+
+    def test_insert_ima_custom(self):
+        return self._test_insert_ima(
+            insert_signature_args={
+                'use_rpmsign': False,
+            }
+        )
+
+    def _test_insert_ima(self, insert_signature_args):
         copy(
             os.path.join(self.asset_dir, 'gpgkey.asc'),
             os.path.join(self.tmpdir, 'gpgkey.key'),
@@ -119,8 +134,8 @@ class TestRpmHeadSigning(unittest.TestCase):
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
-                os.path.join(os.path.abspath('.'), 'ima_lookup.so'),
-                os.path.join(self.asset_dir, 'digests.out.signed'),
+                ima_presigned_path=os.path.join(self.asset_dir, 'digests.out.signed'),
+                **insert_signature_args,
             )
             res = subprocess.run(
                 [

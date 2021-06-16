@@ -5,12 +5,10 @@ from tempfile import mkdtemp
 import os.path
 import shutil
 
-import six
-
 LOOKUP_PATH = '/usr/lib64/ima_lookup.so'
 
 
-def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None):
+def _insert_signature_with_rpmsign(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None):
     if ima_lookup_path is None:
         ima_lookup_path = LOOKUP_PATH
 
@@ -52,6 +50,26 @@ def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_pat
     finally:
         if ima_presigned_tempdir:
             shutil.rmtree(ima_presigned_tempdir, ignore_errors=True)
+
+
+def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
+    raise NotImplementedError()
+
+
+def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None, use_rpmsign=None):
+    if (ima_lookup_path is not None and use_rpmsign is None) or use_rpmsign is True:
+        return _insert_signature_with_rpmsign(
+            rpm_path=rpm_path,
+            sig_path=sig_path,
+            ima_lookup_path=ima_lookup_path,
+            ima_presigned_path=ima_presigned_path,
+        )
+    else:
+        return _insert_signature_custom(
+            rpm_path=rpm_path,
+            sig_path=sig_path,
+            ima_presigned_path=ima_presigned_path,
+        )
 
 
 if __name__ == '__main__':
