@@ -49,6 +49,7 @@ class TestRpmHeadSigning(unittest.TestCase):
         self.compare_files("digests.out", "digests.out.tmp")
 
     def test_insert_no_ima(self):
+        raise Exception("Not now")
         copy(
             os.path.join(self.asset_dir, 'gpgkey.asc'),
             os.path.join(self.tmpdir, 'gpgkey.key'),
@@ -81,18 +82,20 @@ class TestRpmHeadSigning(unittest.TestCase):
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
                     '--define', '%%_keyringpath %s' % self.tmpdir,
-                    '-Kvvvv',
+                    '-Kvvvvvvvv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
                 check=True,
                 capture_output=True,
                 encoding='utf-8',
             )
+            print("Output: %s" % res.stdout)
             self.assertTrue('SHA256 digest: OK' in res.stdout)
             self.assertTrue('Header V3 RSA' in res.stdout)
             self.assertTrue('15f712be: ok' in res.stdout.lower())
 
     def test_insert_ima_rpmsign(self):
+        raise Exception("Not now")
         return self._test_insert_ima(
             insert_signature_args={
                 'use_rpmsign': True,
@@ -146,7 +149,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
                 check=True,
-                capture_output=True,
+                #capture_output=True,  # TODO
                 encoding='utf-8',
             )
             self.assertTrue('SHA256 digest: OK' in res.stdout)

@@ -1,11 +1,28 @@
 #!/usr/bin/env python
 import base64
+import binascii
 import subprocess
 from tempfile import mkdtemp
 import os.path
 import shutil
+import struct
+
+import six
+import koji
+
+from .extract_header import _get_filedigests
+from .extract_rpm_with_filesigs import (
+    RPMSIGTAG_FILESIGNATURES,
+    RPMSIGTAG_FILESIGNATURELENGTH,
+    RPMSIGTAG_RESERVEDSPACE,
+    RPMSIGTAG_PGP,
+)
 
 LOOKUP_PATH = '/usr/lib64/ima_lookup.so'
+
+RPM_INT32_TYPE = 4
+RPM_BIN_TYPE = 7
+RPM_STRING_ARRAY_TYPE = 8
 
 
 def _insert_signature_with_rpmsign(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None):
@@ -53,7 +70,133 @@ def _insert_signature_with_rpmsign(rpm_path, sig_path, ima_lookup_path=None, ima
 
 
 def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
-    raise NotImplementedError()
+    sighdr_raw = koji.rip_rpm_sighdr(rpm_path)
+    sighdr_len = len(sighdr_raw)
+    sighdr = koji.RawHeader(sighdr_raw)
+
+    sig_records = {}
+
+    reserved_space = None
+
+    # Get original records
+    for tag in sighdr.index:
+        _tag, typ, offset, count = sighdr.index[tag]
+        if tag == RPMSIGTAG_RESERVEDSPACE:
+            reserved_space = count
+            continue
+        sig_records[tag] = {
+            'type': typ,
+            'orig_offset': offset,
+            'orig_count': count,
+        }
+
+    # Add PGP record
+    with open(sig_path, 'rb') as sigfile:
+        signature = sigfile.read()
+        #sig_records[RPMSIGTAG_PGP] = { # TODO: Maybe 268 (RSAHEADER)?
+        sig_records[268] = { # TODO: Maybe 268 (RSAHEADER)?
+            'type': RPM_BIN_TYPE,
+            'value': signature,
+            'count': len(signature),
+        }
+
+    # Add IMA signature record
+    if ima_presigned_path is not None:
+        ima_signature_lookup = {}
+        with open(ima_presigned_path, 'r', encoding='utf8') as sigpath:
+            for line in sigpath.readlines():
+                algo, digest, signature = line.strip().split(' ')
+                signature = binascii.hexlify(base64.b64decode(signature))
+                ima_signature_lookup['%s:%s' % (algo, digest)] = signature
+
+        rpmhdr = koji.get_rpm_header(rpm_path)
+        file_digestalgo, file_digests = _get_filedigests(rpmhdr)
+        ima_signatures = []
+        for digest in file_digests:
+            signature = ima_signature_lookup.get('%s:%s' % (file_digestalgo, digest))
+            if signature is None:
+                raise Exception("File digest %s did not have a signature" % digest)
+            ima_signatures.append(signature)
+
+        if ima_signatures:
+            sig_records[RPMSIGTAG_FILESIGNATURES] = {
+                'type': RPM_STRING_ARRAY_TYPE,
+                'value': b'\0'.join(ima_signatures) + b'\0',
+                'count': len(ima_signatures),
+            }
+            ima_siglen = int((len(ima_signatures[0]) / 2) + 1)
+            #sig_records[RPMSIGTAG_FILESIGNATURELENGTH] = {
+            #    'type': RPM_INT32_TYPE,
+            #    'value': struct.pack('!i', ima_siglen),
+            #    'count': 1,
+            #}
+
+    # Rebuild the new signature header
+    prefix = sighdr_raw[0:8]
+    idxs = []
+    payloads = []
+
+    orig_store = 16 + len(sighdr.index) * 16
+    payload_offset = 0
+
+    for tag in sig_records:
+        data = sig_records[tag]
+        typ = data['type']
+
+        if 'value' in data:
+            payload = data['value']
+            payload_count = data['count']
+        else:
+            offset = data['orig_offset']
+            count = data['orig_count']
+            if typ == 0:
+                # NULL entry
+                payload = b''
+                payload_count = 1
+            elif typ >= 2 and typ <= 5:
+                # Integer
+                n = 1 << (typ - 2)
+                payload = sighdr_raw[orig_store + offset : orig_store + offset + (n * count)]
+                payload_count = count
+            elif type == 1 or typ == 7:
+                # Count-identified size
+                payload = sighdr_raw[orig_store + offset : orig_store + offset + count]
+                payload_count = count
+            elif typ == 6:
+                # Null-terminated string
+                end = sighdr_raw.find(six.b('\0'), orig_store + offset)
+                payload = sighdr_raw[orig_store + offset : orig_store + end]
+                payload_count = 1
+            else:
+                raise NotImplementedError("Tag type %d not implemented" % typ)
+
+        payloads.append(payload)
+
+        idxs.append(
+            struct.pack('!IIII', tag, typ, payload_offset, payload_count)
+        )
+        payload_offset += len(payload)
+        print("added %d bytes of payload, offset is now %0x" % (len(payload), payload_offset))
+
+    # Construct full header
+    hdr_sizes = struct.pack('!II', len(idxs), payload_offset)
+    sighdr_new = prefix + hdr_sizes + b''.join(idxs) + b''.join(payloads)
+
+    # TODO: Remove
+    print("Original: (%s, %s)" % (sighdr.version(), len(sighdr.index)))
+    print("raw sizes: %s" % sighdr_raw[8:16])
+    print("Interpreted: %d, %d" % struct.unpack('!II', sighdr_raw[8:16]))
+    sighdr.dump()
+
+    parsed_new = koji.RawHeader(sighdr_new)
+    print("New: (%s, %s)" % (parsed_new.version(), len(parsed_new.index)))
+    print("raw sizes: %s" % sighdr_new[8:16])
+    print("Interpreted: %d, %d" % struct.unpack('!II', sighdr_new[8:16]))
+    parsed_new.dump()
+
+
+    dst = koji.splice_rpm_sighdr(sighdr_new, rpm_path)
+    shutil.move(dst, rpm_path)
 
 
 def insert_signature(rpm_path, sig_path, ima_lookup_path=None, ima_presigned_path=None, use_rpmsign=None):
