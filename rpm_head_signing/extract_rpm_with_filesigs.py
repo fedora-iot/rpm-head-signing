@@ -33,10 +33,14 @@ def _extract_rpm(rpm_path, output_path):
 
 
 RPMSIGTAG_FILESIGNATURES = 274
+RPMSIGTAG_FILESIGNATURELENGTH = 275
+RPMSIGTAG_RESERVEDSPACE = 1008
+RPMSIGTAG_PGP = 259
+RPMSIGTAG_RSAHEADER = 268
 
 
 # Koji doesn't support type 8 (string array) for returning
-def __get_filesigs_from_rawhdr(raw_hdr):
+def _get_header_type_8(raw_hdr, tag):
     entry = raw_hdr.index.get(RPMSIGTAG_FILESIGNATURES)
     if entry is None:
         raise Exception("No file signatures found")
@@ -55,10 +59,11 @@ def __get_filesigs_from_rawhdr(raw_hdr):
         pos = end + 1
     return filesigs
 
+
 def _extract_filesigs(rpm_path, output_path):
     sighdr = rip_rpm_sighdr(rpm_path)
     sighdr = RawHeader(sighdr)
-    filesigs = __get_filesigs_from_rawhdr(sighdr)
+    filesigs = _get_header_type_8(sighdr, RPMSIGTAG_FILESIGNATURES)
 
     rpm_hdr = get_rpm_header(rpm_path)
     diridxs = rpm_hdr[rpm.RPMTAG_DIRINDEXES]

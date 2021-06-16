@@ -9,3 +9,5 @@ python-rpm_head_signing*
 BUILDROOT/
 dist/
 __pycache__/
+build/
+**/*.so

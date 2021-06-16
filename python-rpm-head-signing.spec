@@ -61,7 +61,6 @@ rm -rf $RPM_BUILD_ROOT
 mkdir -p %{buildroot}%{_bindir}/
 install ima_calc_keyid %{buildroot}%{_bindir}/
 mkdir -p %{buildroot}%{_libdir}/
-install ima_lookup.so %{buildroot}%{_libdir}
 
 
 %check
@@ -69,9 +68,8 @@ install ima_lookup.so %{buildroot}%{_libdir}
 
 %files -n  python%{python3_pkgversion}-%{srcname}
 %license LICENSE
-%{python3_sitelib}/%{srcname}/
-%{python3_sitelib}/%{srcname}-%{version}-py%{python3_version}.egg-info/
-%{_libdir}/ima_lookup.so
+%{python3_sitearch}/%{srcname}/
+%{python3_sitearch}/%{srcname}-%{version}-py%{python3_version}.egg-info/
 
 %files -n rpm_head_signing-tools
 %{_bindir}/ima_calc_keyid

@@ -81,7 +81,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
                     '--define', '%%_keyringpath %s' % self.tmpdir,
-                    '-Kvvvv',
+                    '-Kvvvvvvvv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
                 check=True,
@@ -119,8 +119,7 @@ class TestRpmHeadSigning(unittest.TestCase):
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
-                os.path.join(os.path.abspath('.'), 'ima_lookup.so'),
-                os.path.join(self.asset_dir, 'digests.out.signed'),
+                ima_presigned_path=os.path.join(self.asset_dir, 'digests.out.signed'),
             )
             res = subprocess.run(
                 [

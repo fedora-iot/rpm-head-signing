@@ -5,7 +5,7 @@ on:
 name: Continuous integration
 
 jobs:
-  run_tests:
+  tests_fedora:
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
@@ -13,11 +13,11 @@ jobs:
 
       - name: Install deps
         run: |
-          dnf install -y python3-six python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio
+          dnf install -y python3-six python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel
 
-      - name: Build ima_lookup.so
+      - name: Build insertlib
         run: |
-          make ima_lookup.so
+          python3 setup.py build_ext -i
 
       - name: Run tests
         run: python3 test.py
