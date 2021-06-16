@@ -20,7 +20,7 @@ TOPDIR		= $(shell echo `pwd`)
 
 tar:
 	mkdir -p $(NV)
-	cp -rv Makefile ima_calc_keyid.c ima_lookup.c LICENSE Makefile README.md rpm_head_signing setup.py $(NV)/
+	cp -rv Makefile ima_calc_keyid.c LICENSE Makefile README.md rpm_head_signing setup.py $(NV)/
 	tar zcvf $(NV).tar.gz $(NV)
 	rm -rf $(NV)
 
@@ -31,11 +31,7 @@ srpm:	tar
 	rpmbuild $(RPM_FLAGS) -bs $(SPEC_FILE)
 
 .PHONY: binaries
-binaries: ima_lookup.so ima_calc_keyid
-
-ima_lookup.so:
-	gcc -c -Wall -Werror -fpic ima_lookup.c -o ima_lookup.o
-	gcc -shared -o ima_lookup.so ima_lookup.o
+binaries: ima_calc_keyid
 
 ima_calc_keyid:
 	gcc -Wall -Werror -fpic ima_calc_keyid.c -o ima_calc_keyid -lcrypto -limaevm
