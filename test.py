@@ -20,7 +20,7 @@ class TestRpmHeadSigning(unittest.TestCase):
         self.tmpdir = mkdtemp(prefix='test-rpm_head_signing-', dir=os.path.abspath('.'))
 
     def tearDown(self):
-        rmtree(self.tmpdir)
+        #rmtree(self.tmpdir)
         self.tmpdir = None
 
     def compare_files(self, asset_name, tmp_name):
@@ -149,7 +149,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
                 check=True,
-                #capture_output=True,  # TODO
+                capture_output=True,
                 encoding='utf-8',
             )
             self.assertTrue('SHA256 digest: OK' in res.stdout)

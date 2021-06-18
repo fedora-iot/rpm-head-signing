@@ -15,7 +15,7 @@ from .extract_rpm_with_filesigs import (
     RPMSIGTAG_FILESIGNATURES,
     RPMSIGTAG_FILESIGNATURELENGTH,
     RPMSIGTAG_RESERVEDSPACE,
-    RPMSIGTAG_PGP,
+    RPMSIGTAG_RSAHEADER,
 )
 
 LOOKUP_PATH = '/usr/lib64/ima_lookup.so'
@@ -72,9 +72,9 @@ def _insert_signature_with_rpmsign(rpm_path, sig_path, ima_lookup_path=None, ima
 def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
     sighdr_raw = koji.rip_rpm_sighdr(rpm_path)
     sighdr_len = len(sighdr_raw)
-    sighdr = koji.RawHeader(sighdr_raw)
+    sighdr_il = struct.unpack('!I', sighdr_raw[8:12])
 
-    sig_records = {}
+    sig_records = []
 
     reserved_space = None
 
@@ -84,21 +84,22 @@ def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
         if tag == RPMSIGTAG_RESERVEDSPACE:
             reserved_space = count
             continue
-        sig_records[tag] = {
+        sig_records.append({
+            'tag': tag,
             'type': typ,
             'orig_offset': offset,
             'orig_count': count,
-        }
+        })
 
-    # Add PGP record
+    # Add RSA Header record
     with open(sig_path, 'rb') as sigfile:
         signature = sigfile.read()
-        #sig_records[RPMSIGTAG_PGP] = { # TODO: Maybe 268 (RSAHEADER)?
-        sig_records[268] = { # TODO: Maybe 268 (RSAHEADER)?
+        sig_records.append({
+            'tag': RPMSIGTAG_RSAHEADER,
             'type': RPM_BIN_TYPE,
             'value': signature,
             'count': len(signature),
-        }
+        })
 
     # Add IMA signature record
     if ima_presigned_path is not None:
@@ -119,11 +120,11 @@ def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
             ima_signatures.append(signature)
 
         if ima_signatures:
-            sig_records[RPMSIGTAG_FILESIGNATURES] = {
-                'type': RPM_STRING_ARRAY_TYPE,
-                'value': b'\0'.join(ima_signatures) + b'\0',
-                'count': len(ima_signatures),
-            }
+            #sig_records[RPMSIGTAG_FILESIGNATURES] = {
+            #    'type': RPM_STRING_ARRAY_TYPE,
+            #    'value': b'\0'.join(ima_signatures) + b'\0',
+            #    'count': len(ima_signatures),
+            #}
             ima_siglen = int((len(ima_signatures[0]) / 2) + 1)
             #sig_records[RPMSIGTAG_FILESIGNATURELENGTH] = {
             #    'type': RPM_INT32_TYPE,
@@ -139,8 +140,8 @@ def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
     orig_store = 16 + len(sighdr.index) * 16
     payload_offset = 0
 
-    for tag in sig_records:
-        data = sig_records[tag]
+    for data in sig_records:
+        tag = data['tag']
         typ = data['type']
 
         if 'value' in data:
@@ -176,11 +177,27 @@ def _insert_signature_custom(rpm_path, sig_path, ima_presigned_path=None):
             struct.pack('!IIII', tag, typ, payload_offset, payload_count)
         )
         payload_offset += len(payload)
-        print("added %d bytes of payload, offset is now %0x" % (len(payload), payload_offset))
 
     # Construct full header
-    hdr_sizes = struct.pack('!II', len(idxs), payload_offset)
-    sighdr_new = prefix + hdr_sizes + b''.join(idxs) + b''.join(payloads)
+    idx = b''.join(idxs)
+    payload = b''.join(payloads)
+    hdr_sizes = struct.pack('!II', len(idxs), len(payload))
+    sighdr_new = prefix + hdr_sizes + idx + payload
+    padding = len(sighdr_new) % 8
+    if padding > 0:
+        sighdr_new += b'\0' * (8 - padding)
+
+    print("Rest: %d" % (len(sighdr_new) % 8))
+
+    # Check
+    data = sighdr_new[8:]
+    il = koji.multibyte(data[0:4])
+    dl = koji.multibyte(data[4:8])
+    hdrsize = 8 + 16 * il + dl
+    hdrsize = hdrsize + (8 - (hdrsize % 8)) % 8
+    hdrsize = hdrsize + 8
+
+    print("Computed hdrsize: %d, actual size: %d" % (hdrsize, len(sighdr_new)))
 
     # TODO: Remove
     print("Original: (%s, %s)" % (sighdr.version(), len(sighdr.index)))
