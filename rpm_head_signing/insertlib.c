@@ -1,8 +1,8 @@
+#include <Python.h>
+
 #include <stdbool.h>
 #include <errno.h>
 #include <string.h>
-
-#include <Python.h>
 
 #include <rpm/rpmtypes.h>
 #include <rpm/rpmlib.h>
@@ -11,24 +11,63 @@
 #include <rpm/rpmfi.h>
 
 // Functions that are in librpm but are not in the headers
-rpmRC rpmLeadWrite(FD_t fd, Header h);
-rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg);
+// This one function is identical from 4.11 onwards...
 int rpmWriteSignature(FD_t fd, Header sigh);
 
-// Determine between RPM 4.15+ and 4.14-
-#ifdef RPMTAG_PAYLOADDIGESTALT
-    // 4.15+
-    #define NEW_RPM 1
+#if defined(RPM_415)
+
     rpmRC rpmLeadRead(FD_t fd, char **emsg);
-#else
-    // 4.14-
+    rpmRC rpmLeadWrite(FD_t fd, Header h);
+    rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg);
+
+#elif defined(RPM_414)
+
     #define RPMTAG_PAYLOADDIGESTALT 5097
     #define RPMSIGTAG_FILESIGNATURES RPMTAG_SIG_BASE + 18
     #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE 19
 
     rpmRC rpmLeadRead(FD_t fd, int *type, char **emsg);
-#endif
+    rpmRC rpmLeadWrite(FD_t fd, Header h);
+    rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg);
 
+#elif defined(RPM_411)
+
+    #define RPMTAG_FILESIGNATURES 5090
+    #define RPMTAG_FILESIGNATURELENGTH 5091
+    #define RPMTAG_PAYLOADDIGEST 5092
+    #define RPMSIGTAG_RESERVEDSPACE 1008
+
+    #define RPMTAG_PAYLOADDIGESTALT 5097
+    #define RPMSIGTAG_FILESIGNATURES RPMTAG_SIG_BASE + 18
+    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE 19
+
+    struct rpmlead_s {
+        unsigned char magic[4];
+        unsigned char major;
+        unsigned char minor;
+        short type;
+        short archnum;
+        char name[66];
+        short osnum;
+        short signature_type;       /*!< Signature header type (RPMSIG_HEADERSIG) */
+        char reserved[16];      /*!< Pad to 96 bytes -- 8 byte aligned! */
+    };
+    typedef struct rpmlead_s * rpmlead;
+
+    rpmlead rpmLeadFromHeader(Header h);
+    rpmlead rpmLeadFree(rpmlead lead);
+
+    typedef enum sigType_e {
+        RPMSIGTYPE_HEADERSIG= 5     /*!< Header style signature */
+    } sigType;
+
+    rpmRC rpmReadSignature(FD_t fd, Header *sighp, sigType sig_type, char ** msg);
+    rpmRC rpmLeadWrite(FD_t fd, rpmlead lead);
+    rpmRC rpmLeadRead(FD_t fd, rpmlead *lead, int *type, char **emsg);
+
+#else
+    #error "Please provide RPM version macro"
+#endif
 
 static void unloadImmutableRegion(Header *hdrp, rpmTagVal tag)
 {
@@ -107,7 +146,7 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
 
     long unsigned int algo = rpmfiDigestAlgo(fi);
     if (algo >= ARRAY_SIZE(hash_algo_names)) {
-        PyErr_Format(PyExc_Exception, "Invalid digest algorithm ID: %d", algo);
+        PyErr_Format(PyExc_Exception, "Invalid digest algorithm ID: %d", (int)algo);
         goto out;
     }
 
@@ -169,7 +208,7 @@ insert_signatures(PyObject *self, PyObject *args)
     PyObject *return_value = Py_True;
     bool success = false;
     const char *rpm_path;
-    Py_buffer signature;
+    PyObject *signature = NULL;
     PyObject *ima_lookup = NULL;
     char *trpm = NULL;
     char *msg = NULL;
@@ -179,8 +218,11 @@ insert_signatures(PyObject *self, PyObject *args)
     Header h = NULL;
     pgpDigParams sigp = NULL;
     rpmtd sigtd = NULL;
+#ifdef RPM_411
+    rpmlead lead = NULL;
+#endif
 
-    if (!PyArg_ParseTuple(args, "psy*|O!", &return_header, &rpm_path, &signature, &PyDict_Type, &ima_lookup))
+    if (!PyArg_ParseTuple(args, "isO!|O!", &return_header, &rpm_path, &PyByteArray_Type, &signature, &PyDict_Type, &ima_lookup))
         return NULL;
 
     rpm_fd = Fopen(rpm_path, "r+.ufdio");
@@ -189,8 +231,10 @@ insert_signatures(PyObject *self, PyObject *args)
         goto out;
     }
 
-#ifdef NEW_RPM
+#if defined(RPM_415)
     if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
+#elif defined(RPM_411)
+    if (rpmLeadRead(rpm_fd, NULL, NULL, &msg) != RPMRC_OK) {
 #else
     if (rpmLeadRead(rpm_fd, NULL, &msg) != RPMRC_OK) {
 #endif
@@ -199,7 +243,11 @@ insert_signatures(PyObject *self, PyObject *args)
     }
 
     off_t sigStart = Ftell(rpm_fd);
+#ifdef RPM_411
+    if (rpmReadSignature(rpm_fd, &sigh, RPMSIGTYPE_HEADERSIG, &msg) != RPMRC_OK) {
+#else
     if (rpmReadSignature(rpm_fd, &sigh, &msg) != RPMRC_OK) {
+#endif
         PyErr_Format(PyExc_Exception, "rpmReadSignature failed: %s", (msg && *msg ? msg : "Unknown error"));
         goto out;
     }
@@ -221,10 +269,14 @@ insert_signatures(PyObject *self, PyObject *args)
     }
 
     unloadImmutableRegion(&sigh, RPMTAG_HEADERSIGNATURES);
+#ifndef RPM_411
     unsigned int origSigSize = headerSizeof(sigh, HEADER_MAGIC_YES);
+#endif
 
     // Insert v4 signature header
-    if (pgpPrtParams(signature.buf, signature.len, PGPTAG_SIGNATURE, &sigp) != RPMRC_OK) {
+    const unsigned char *signature_buf = (unsigned char *)PyByteArray_AsString(signature);
+    Py_ssize_t signature_len = PyByteArray_Size(signature);
+    if (pgpPrtParams(signature_buf, signature_len, PGPTAG_SIGNATURE, &sigp) != RPMRC_OK) {
         PyErr_SetString(PyExc_Exception, "Unsupported PGP signature");
         goto out;
     }
@@ -243,8 +295,8 @@ insert_signatures(PyObject *self, PyObject *args)
     }
 
     sigtd = rpmtdNew();
-    sigtd->count = signature.len;
-    sigtd->data = memcpy(malloc(signature.len), signature.buf, signature.len);
+    sigtd->count = signature_len;
+    sigtd->data = memcpy(malloc(signature_len), signature_buf, signature_len);
     sigtd->type = RPM_BIN_TYPE;
     sigtd->tag = sigtag;
     sigtd->flags |= RPMTD_ALLOCED;
@@ -264,9 +316,13 @@ insert_signatures(PyObject *self, PyObject *args)
     }
 
     // Clean out the reservedspace
-    bool insSig;
+    bool insSig = false;
     struct rpmtd_s utd;
     if (headerGet(sigh, RPMSIGTAG_RESERVEDSPACE, &utd, HEADERGET_MINMEM)) {
+#ifdef RPM_411
+        insSig = false;
+        headerDel(sigh, RPMSIGTAG_RESERVEDSPACE);
+#else
         unsigned int diff = headerSizeof(sigh, HEADER_MAGIC_YES) - origSigSize;
 
         if (diff > 0 && diff < utd.count) {
@@ -274,6 +330,7 @@ insert_signatures(PyObject *self, PyObject *args)
             headerMod(sigh, &utd);
             insSig = true;
         }
+#endif
     }
 
     // Reallocate signature into contiguous region
@@ -308,7 +365,12 @@ insert_signatures(PyObject *self, PyObject *args)
             goto out;
         }
 
+#ifdef RPM_411
+        lead = rpmLeadFromHeader(h);
+        if (rpmLeadWrite(rpm_ofd, lead)) {
+#else
         if (rpmLeadWrite(rpm_ofd, h)) {
+#endif
             PyErr_Format(PyExc_Exception, "Error writing lead: %s", Fstrerror(rpm_ofd));
             goto out;
         }
@@ -351,6 +413,10 @@ out:
     if (rpm_fd) Fclose(rpm_fd);
     if (rpm_ofd) Fclose(rpm_ofd);
 
+#ifdef RPM_411
+    rpmLeadFree(lead);
+#endif
+
     headerFree(sigh);
     headerFree(h);
     free(msg);
@@ -369,7 +435,7 @@ static PyMethodDef InsertLibMethods[] = {
 
 #if PY_MAJOR_VERSION == 2
 PyMODINIT_FUNC
-init_insertlib(void)
+initinsertlib(void)
 {
     (void) Py_InitModule("insertlib", InsertLibMethods);
 }

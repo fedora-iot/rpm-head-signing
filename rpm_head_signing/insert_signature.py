@@ -19,30 +19,38 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
     Either writes the signature back to the RPM (return_header=False) or returns
     the signature header blob (return_header=True)
     """
+    if return_header:
+        return_header = 1
+    else:
+        return_header = 0
+
     # Add RSA Header record
     with open(sig_path, 'rb') as sigfile:
-        rpm_signature = sigfile.read()
+        rpm_signature = bytearray(sigfile.read())
 
     # Add IMA signature record
-    ima_args = []
-    if ima_presigned_path is not None:
+    if ima_presigned_path is None:
+        return insertlib_insert_signatures(
+            return_header,
+            rpm_path,
+            rpm_signature,
+        )
+    else:
         ima_signature_lookup = {}
-        with open(ima_presigned_path, 'r', encoding='utf8') as sigpath:
+        with open(ima_presigned_path, 'r') as sigpath:
             for line in sigpath.readlines():
                 algo, digest, signature = line.strip().split(' ')
                 signature = binascii.hexlify(b'\x03' + base64.b64decode(signature))
                 if algo not in ima_signature_lookup:
                     ima_signature_lookup[algo] = {}
-                # Perhaps: prefix "signature" with "\x03"
                 ima_signature_lookup[algo][digest.lower()] = signature
-        ima_args = [ima_signature_lookup]
 
-    return insertlib_insert_signatures(
-        return_header,
-        rpm_path,
-        rpm_signature,
-        *ima_args,
-    )
+        return insertlib_insert_signatures(
+            return_header,
+            rpm_path,
+            rpm_signature,
+            ima_signature_lookup,
+        )
 
 
 if __name__ == '__main__':
