@@ -12,9 +12,23 @@
 
 // Functions that are in librpm but are not in the headers
 rpmRC rpmLeadWrite(FD_t fd, Header h);
-rpmRC rpmLeadRead(FD_t fd, char **emsg);
 rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg);
 int rpmWriteSignature(FD_t fd, Header sigh);
+
+// Determine between RPM 4.15+ and 4.14-
+#ifdef RPMTAG_PAYLOADDIGESTALT
+    // 4.15+
+    #define NEW_RPM 1
+    rpmRC rpmLeadRead(FD_t fd, char **emsg);
+#else
+    // 4.14-
+    #define RPMTAG_PAYLOADDIGESTALT 5097
+    #define RPMSIGTAG_FILESIGNATURES RPMTAG_SIG_BASE + 18
+    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE 19
+
+    rpmRC rpmLeadRead(FD_t fd, int *type, char **emsg);
+#endif
+
 
 static void unloadImmutableRegion(Header *hdrp, rpmTagVal tag)
 {
@@ -175,7 +189,11 @@ insert_signatures(PyObject *self, PyObject *args)
         goto out;
     }
 
+#ifdef NEW_RPM
     if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
+#else
+    if (rpmLeadRead(rpm_fd, NULL, &msg) != RPMRC_OK) {
+#endif
         PyErr_Format(PyExc_Exception, "Error leading read: %s", (msg && *msg ? msg : "Unknown error"));
         goto out;
     }
