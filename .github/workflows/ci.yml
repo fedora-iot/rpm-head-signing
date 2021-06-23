@@ -21,3 +21,22 @@ jobs:
 
       - name: Run tests
         run: python3 test.py
+
+  tests_centos_8:
+    runs-on: ubuntu-latest
+    container: centos:8
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install deps
+        run: |
+          dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+          dnf install -y python3-six python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel
+          pip3 install pyxattr
+
+      - name: Build insertlib
+        run: |
+          python3 setup.py build_ext -i
+
+      - name: Run tests
+        run: python3 test.py

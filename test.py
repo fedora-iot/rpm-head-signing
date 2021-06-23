@@ -58,7 +58,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                 os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm" % pkg),
                 os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
             )
-            res = subprocess.run(
+            res = subprocess.check_output(
                 [
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
@@ -66,17 +66,15 @@ class TestRpmHeadSigning(unittest.TestCase):
                     '-Kv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
-                check=True,
-                capture_output=True,
                 encoding='utf-8',
             )
-            self.assertTrue('SHA256 digest: OK' in res.stdout)
-            self.assertFalse('Header V3 RSA' in res.stdout)
+            self.assertTrue('SHA256 digest: OK' in res)
+            self.assertFalse('Header V3 RSA' in res)
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg)
             )
-            res = subprocess.run(
+            res = subprocess.check_output(
                 [
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
@@ -84,13 +82,11 @@ class TestRpmHeadSigning(unittest.TestCase):
                     '-Kvvvvvvvv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
-                check=True,
-                capture_output=True,
                 encoding='utf-8',
             )
-            self.assertTrue('SHA256 digest: OK' in res.stdout)
-            self.assertTrue('Header V3 RSA' in res.stdout)
-            self.assertTrue('15f712be: ok' in res.stdout.lower())
+            self.assertTrue('SHA256 digest: OK' in res)
+            self.assertTrue('Header V3 RSA' in res)
+            self.assertTrue('15f712be: ok' in res.lower())
 
     def test_insert_ima(self):
         copy(
@@ -102,7 +98,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                 os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm" % pkg),
                 os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
             )
-            res = subprocess.run(
+            res = subprocess.check_output(
                 [
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
@@ -110,18 +106,16 @@ class TestRpmHeadSigning(unittest.TestCase):
                     '-Kv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
-                check=True,
-                capture_output=True,
                 encoding='utf-8',
             )
-            self.assertTrue('SHA256 digest: OK' in res.stdout)
-            self.assertFalse('Header V3 RSA' in res.stdout)
+            self.assertTrue('SHA256 digest: OK' in res)
+            self.assertFalse('Header V3 RSA' in res)
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
                 ima_presigned_path=os.path.join(self.asset_dir, 'digests.out.signed'),
             )
-            res = subprocess.run(
+            res = subprocess.check_output(
                 [
                     'rpm',
                     '--define', '%%_keyringpath %s' % self.tmpdir,
@@ -129,13 +123,11 @@ class TestRpmHeadSigning(unittest.TestCase):
                     '-Kvvvv',
                     os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
                 ],
-                check=True,
-                capture_output=True,
                 encoding='utf-8',
             )
-            self.assertTrue('SHA256 digest: OK' in res.stdout)
-            self.assertTrue('Header V3 RSA' in res.stdout)
-            self.assertTrue('15f712be: ok' in res.stdout.lower())
+            self.assertTrue('SHA256 digest: OK' in res)
+            self.assertTrue('Header V3 RSA' in res)
+            self.assertTrue('15f712be: ok' in res.lower())
 
             extracted_dir = os.path.join(self.tmpdir, 'testpkg-%s.noarch.extracted' % pkg)
 
