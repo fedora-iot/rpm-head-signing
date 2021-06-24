@@ -334,6 +334,10 @@ insert_signatures(PyObject *self, PyObject *args)
             utd.count -= diff;
             headerMod(sigh, &utd);
             insSig = true;
+        } else {
+            // If we were unable to reuse the existing reserved space, and have to rewrite
+            // the entire file anyway, let's just get rid of the reserved space.
+            headerDel(sigh, RPMSIGTAG_RESERVEDSPACE);
         }
 #endif
     }
