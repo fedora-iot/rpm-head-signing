@@ -176,11 +176,11 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
             goto out;
         }
         const char *sigstr = PyBytes_AsString(signature);
-        td.data = &sigstr;
-        if (td.data == NULL) {
+        if (sigstr == NULL) {
             // AsString sets the error
             goto out;
         }
+        td.data = &sigstr;
         if (siglen == 0) {
             siglen = strlen(sigstr);
         }
