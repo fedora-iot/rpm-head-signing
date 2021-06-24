@@ -121,6 +121,14 @@ class TestRpmHeadSigning(unittest.TestCase):
                 'test_insert.py',
             ]
         )
+        with open(valgrind_logfile, 'r') as logfile:
+            log = logfile.read()
+        if os.environ.get('PRINT_VALGRIND_LOG'):
+            print('---- START OF VALGRIND LOG ----')
+            print(log)
+            print('---- END OF VALGRIND LOG ----')
+        if 'insertlib.c' in log:
+            raise Exception("insertlib.c found in the Valgrind log")
 
     def _ima_insertion_test(self, insert_command):
         copy(
