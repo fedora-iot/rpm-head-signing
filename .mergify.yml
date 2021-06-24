@@ -1,0 +1,16 @@
+queue_rules:
+- name: rpm-head-signing
+  conditions:
+    - base=main
+    - "#approved-reviews-by>=1"
+
+pull_request_rules:
+  - name: Automatic merge on approval
+    conditions:
+    - base=main
+    - "#approved-reviews-by>=1"
+    actions:
+      queue:
+        name: rpm-head-signing
+        method: rebase
+        rebase_fallback: none
