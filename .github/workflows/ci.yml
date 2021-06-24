@@ -20,7 +20,7 @@ jobs:
           python3 setup.py build_ext -i
 
       - name: Run tests
-        run: python3 test.py
+        run: PRINT_VALGRIND_LOG=1 python3 test.py
 
   tests_centos_8:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
           python3 setup.py build_ext -i
 
       - name: Run tests
-        run: python3 test.py
+        run: PRINT_VALGRIND_LOG=1 python3 test.py
 
   tests_centos_7:
     runs-on: ubuntu-latest
@@ -59,4 +59,4 @@ jobs:
 
       - name: Run tests
         run: |
-          ONLY_ALTERNATIVE_EVMCTL_CHECK=true python test.py
+          ONLY_ALTERNATIVE_EVMCTL_CHECK=true PRINT_VALGRIND_LOG=1 python test.py
