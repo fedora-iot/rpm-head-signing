@@ -296,7 +296,12 @@ insert_signatures(PyObject *self, PyObject *args)
 
     sigtd = rpmtdNew();
     sigtd->count = signature_len;
-    sigtd->data = memcpy(malloc(signature_len), signature_buf, signature_len);
+    sigtd->data = malloc(signature_len);
+    if (sigtd->data == NULL) {
+        PyErr_SetString(PyExc_Exception, "Error allocating memory for signature copy");
+        goto out;
+    }
+    memcpy(sigtd->data, signature_buf, signature_len);
     sigtd->type = RPM_BIN_TYPE;
     sigtd->tag = sigtag;
     sigtd->flags |= RPMTD_ALLOCED;
@@ -421,6 +426,9 @@ out:
     headerFree(h);
     free(trpm);
     free(msg);
+#ifdef RPM_411
+    if (sigtd->data != NULL) free(sigtd->data);
+#endif
     if (sigtd != NULL) rpmtdFree(sigtd);
 
     if (success) {
