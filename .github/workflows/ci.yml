@@ -13,7 +13,7 @@ jobs:
 
       - name: Install deps
         run: |
-          dnf install -y python3-six python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography
+          dnf install -y python3-six python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind
 
       - name: Build insertlib
         run: |
@@ -31,7 +31,7 @@ jobs:
       - name: Install deps
         run: |
           dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-          dnf install -y python3-six python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography
+          dnf install -y python3-six python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind
           pip3 install pyxattr
 
       - name: Build insertlib
@@ -50,7 +50,7 @@ jobs:
       - name: Install deps
         run: |
           yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-          yum install -y python2-six python2-koji make gcc rpm-sign cpio python2-setuptools rpm-devel python2-devel python2-pip ima-evm-utils zstd python2-cryptography
+          yum install -y python2-six python2-koji make gcc rpm-sign cpio python2-setuptools rpm-devel python2-devel python2-pip ima-evm-utils zstd python2-cryptography valgrind
           pip install pyxattr
 
       - name: Build insertlib
