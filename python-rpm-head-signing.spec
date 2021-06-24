@@ -9,7 +9,7 @@ Version:        0.1
 Release:        2%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
-URL:            https://github.com/puiterwijk/rpm-head-signing
+URL:            https://github.com/fedora-iot/rpm-head-signing
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  python%{python3_pkgversion}-devel
