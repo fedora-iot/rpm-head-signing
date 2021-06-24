@@ -419,6 +419,7 @@ out:
 
     headerFree(sigh);
     headerFree(h);
+    free(trpm);
     free(msg);
     if (sigtd != NULL) rpmtdFree(sigtd);
 
