@@ -62,6 +62,15 @@ class TestRpmHeadSigning(unittest.TestCase):
         self.compare_files("testpkg-2.noarch.rpm.hdr", "testpkg-2.noarch.rpm.hdr.tmp")
         self.compare_files("digests.out", "digests.out.tmp")
 
+    def test_extract_non_hdrsign_able(self):
+        with self.assertRaises(rpm_head_signing.NonHeaderSignablePackage):
+            rpm_head_signing.extract_header(
+                os.path.join(self.asset_dir, 'sblim-cim-client-javadoc-1.3.9.1-1.el6.noarch.rpm'),
+                os.path.join(self.tmpdir, 'sblim-cim-client-javadoc-1.3.9.1-1.el6.noarch.rpm.hdr.tmp'),
+                os.path.join(self.tmpdir, 'digests.out.tmp'),
+            )
+        self.assertFalse(os.path.exists(os.path.join(self.tmpdir, 'digests.out.tmp')))
+
     def test_insert_no_ima(self):
         copy(
             os.path.join(self.asset_dir, 'gpgkey.asc'),
