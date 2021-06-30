@@ -6,7 +6,6 @@ import sys
 
 from koji import get_rpm_header, rip_rpm_sighdr, RawHeader
 import rpm
-import six
 import xattr
 
 
@@ -64,7 +63,12 @@ def _get_header_type_8(raw_hdr, tag):
     pos = store + offset
     filesigs = []
     for i in range(count):
-        end = raw_hdr.header.find(six.b('\0'), pos)
+        if sys.version_info.major == 2:
+            end = raw_hdr.header.find('\0', pos)
+        elif sys.version_info.major == 3:
+            end = raw_hdr.header.find(b'\0', pos)
+        else:
+            raise Exception("Unsupported Python")
         filesig = raw_hdr.header[pos:end]
         filesig = filesig.decode('utf8')
         filesig = bytearray.fromhex(filesig)
