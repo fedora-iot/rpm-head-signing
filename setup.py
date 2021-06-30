@@ -25,7 +25,7 @@ insertlib = Extension(
 
 setup(
     name='rpm_head_signing',
-    version='0.1',
+    version='1.0',
     packages=['rpm_head_signing'],
     ext_package='rpm_head_signing',
     ext_modules=[insertlib],
@@ -33,7 +33,6 @@ setup(
         'requests',
         'koji',
         'rpm',
-        'six',
         'pyxattr',
     ]
 )
