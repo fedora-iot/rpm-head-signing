@@ -7,8 +7,6 @@ import os.path
 import shutil
 import struct
 
-import koji
-
 from .insertlib import insert_signatures as insertlib_insert_signatures
 
 
