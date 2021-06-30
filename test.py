@@ -62,6 +62,21 @@ class TestRpmHeadSigning(unittest.TestCase):
         self.compare_files("testpkg-2.noarch.rpm.hdr", "testpkg-2.noarch.rpm.hdr.tmp")
         self.compare_files("digests.out", "digests.out.tmp")
 
+    def test_extract_no_digests(self):
+        rpm_head_signing.extract_header(
+            os.path.join(self.asset_dir, 'testpkg-1.noarch.rpm'),
+            os.path.join(self.tmpdir, 'testpkg-1.noarch.rpm.hdr.tmp'),
+            digest_out_path=None,
+        )
+        rpm_head_signing.extract_header(
+            os.path.join(self.asset_dir, 'testpkg-2.noarch.rpm'),
+            os.path.join(self.tmpdir, 'testpkg-2.noarch.rpm.hdr.tmp'),
+            digest_out_path=None,
+        )
+
+        self.compare_files("testpkg-1.noarch.rpm.hdr", "testpkg-1.noarch.rpm.hdr.tmp")
+        self.compare_files("testpkg-2.noarch.rpm.hdr", "testpkg-2.noarch.rpm.hdr.tmp")
+
     def test_extract_non_hdrsign_able(self):
         with self.assertRaises(rpm_head_signing.NonHeaderSignablePackage):
             rpm_head_signing.extract_header(
