@@ -27,9 +27,10 @@ def extract_header(input_path, header_out_path, digest_out_path):
     hdr_start = sig_start + sig_size
     hdr_size = rpm_hdr_size(input_path, hdr_start)
 
-    rpm_hdr = get_rpm_header(input_path)
-    file_digestalgo, file_digests = _get_filedigests(rpm_hdr)
-    file_digests = set(file_digests)
+    if digest_out_path:
+        rpm_hdr = get_rpm_header(input_path)
+        file_digestalgo, file_digests = _get_filedigests(rpm_hdr)
+        file_digests = set(file_digests)
 
     with open(input_path, "rb") as f:
         f.seek(hdr_start)
@@ -39,12 +40,13 @@ def extract_header(input_path, header_out_path, digest_out_path):
         with open(header_out_path, "wb") as of:
             of.write(hdrcts)
 
-    with open(digest_out_path, "at") as df:
-        for digest in file_digests:
-            digest = digest.strip()
-            if not digest:
-                continue
-            df.write("%s %s\n" % (file_digestalgo, digest))
+    if digest_out_path:
+        with open(digest_out_path, "at") as df:
+            for digest in file_digests:
+                digest = digest.strip()
+                if not digest:
+                    continue
+                df.write("%s %s\n" % (file_digestalgo, digest))
 
 
 if __name__ == '__main__':
