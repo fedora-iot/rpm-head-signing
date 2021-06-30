@@ -205,11 +205,15 @@ static PyObject *
 insert_signatures(PyObject *self, PyObject *args)
 {
     int return_header;
-    PyObject *return_value = Py_True;
+    PyObject *return_value = NULL;
     bool success = false;
     const char *rpm_path;
     PyObject *signature = NULL;
     PyObject *ima_lookup = NULL;
+    PyObject *sig_hdr_magic = NULL;
+    PyObject *sig_hdr = NULL;
+    PyObject *sig_hdr_pad = NULL;
+    PyObject *sig_hdr_padded = NULL;
     char *trpm = NULL;
     char *msg = NULL;
     FD_t rpm_fd = NULL;
@@ -351,10 +355,51 @@ insert_signatures(PyObject *self, PyObject *args)
     }
 
     if (return_header) {
-        // TODO
-        PyErr_SetString(PyExc_Exception, "TODO: return_header");
-        goto out;
-        //return_value = PyBytes_FromStringAndSize()
+        // Return the fully constructed signature header
+        sig_hdr_magic = PyByteArray_FromStringAndSize((const char *)rpm_header_magic, 8);
+        if (sig_hdr_magic == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error building bytearray from header magic");
+            goto out;
+        }
+        unsigned int headerSize;
+        void *headerBytes = headerExport(sigh, &headerSize);
+        if (headerBytes == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error exporting header to bytearray");
+            goto out;
+        }
+        sig_hdr = PyByteArray_FromStringAndSize(headerBytes, headerSize);
+        free(headerBytes);
+        if (sig_hdr == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error building bytearray from header");
+            goto out;
+        }
+
+        static const char zeros[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+        int padlen = (8 - (headerSize % 8)) % 8;
+        if (padlen != 0) {
+            sig_hdr_pad = PyByteArray_FromStringAndSize(zeros, padlen);
+            if (sig_hdr_pad == NULL) {
+                PyErr_SetString(PyExc_Exception, "Error building bytearray for header padding");
+                goto out;
+            }
+            sig_hdr_padded = PyByteArray_Concat(sig_hdr, sig_hdr_pad);
+            if (sig_hdr_padded == NULL) {
+                PyErr_SetString(PyExc_Exception, "Error padding signature header");
+                goto out;
+            }
+
+            // Replace sig_hdr with the sig_hdr_padded version
+            Py_CLEAR(sig_hdr);
+            sig_hdr = sig_hdr_padded;
+            sig_hdr_padded = NULL;
+        }
+
+        return_value = PyByteArray_Concat(sig_hdr_magic, sig_hdr);
+        if (return_value == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error building signature header");
+            goto out;
+        }
+
     } else if (insSig) {
         // Insert signature into RPM
         if (Fseek(rpm_fd, sigStart, SEEK_SET) < 0) {
@@ -365,6 +410,7 @@ insert_signatures(PyObject *self, PyObject *args)
             PyErr_Format(PyExc_Exception, "Error writing signature: %s", Fstrerror(rpm_fd));
             goto out;
         }
+
     } else {
         // Create new RPM
         rasprintf(&trpm, "%s.XXXXXX", rpm_path);
@@ -426,6 +472,10 @@ out:
     rpmLeadFree(lead);
 #endif
 
+    Py_CLEAR(sig_hdr_magic);
+    Py_CLEAR(sig_hdr);
+    Py_CLEAR(sig_hdr_pad);
+    Py_CLEAR(sig_hdr_padded);
     headerFree(sigh);
     headerFree(h);
     free(trpm);
@@ -436,7 +486,11 @@ out:
     if (sigtd != NULL) rpmtdFree(sigtd);
 
     if (success) {
-        return return_value;
+        if (return_value == NULL) {
+            Py_RETURN_NONE;
+        } else {
+            return return_value;
+        }
     } else {
         return NULL;
     }

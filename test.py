@@ -125,15 +125,27 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b'15f712be: ok' in res.lower())
 
     def test_insert_ima(self):
-        self._ima_insertion_test(None)
+        def insert_cb(pkg):
+            rpm_head_signing.insert_signature(
+                os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
+                os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
+                ima_presigned_path=os.path.join(self.asset_dir, 'digests.out.signed'),
+            )
+        self._ima_insertion_test(insert_cb)
 
-    def test_insert_ima_valgrind(self):
+    def test_insert_ima_valgrind_normal(self):
+        self._test_insert_ima_valgrind('normal')
+
+    def test_insert_ima_valgrind_splice_header(self):
+        self._test_insert_ima_valgrind('splice_header')
+
+    def _test_insert_ima_valgrind(self, insert_mode):
         valgrind_logfile = os.environ.get(
             'VALGRIND_LOG_FILE',
             '%s/valgrind.log' % self.tmpdir,
         )
-        self._ima_insertion_test(
-            [
+        def insert_cb(pkg):
+            insert_command = [
                 'valgrind',
                 '--tool=memcheck',
                 '--track-fds=yes',
@@ -143,8 +155,18 @@ class TestRpmHeadSigning(unittest.TestCase):
                 '--',
                 sys.executable,
                 'test_insert.py',
+                insert_mode,
             ]
-        )
+            subprocess.check_call(
+                insert_command + [
+                    os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
+                    os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
+                    os.path.join(self.asset_dir, 'digests.out.signed'),
+                ]
+            )
+
+        self._ima_insertion_test(insert_cb)
+
         with open(valgrind_logfile, 'r') as logfile:
             log = logfile.read()
         if os.environ.get('PRINT_VALGRIND_LOG'):
@@ -176,20 +198,7 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b'SHA1 digest: OK' in res)
             self.assertFalse(b'Header V3 RSA' in res)
 
-            if insert_command is None:
-                rpm_head_signing.insert_signature(
-                    os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
-                    os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
-                    ima_presigned_path=os.path.join(self.asset_dir, 'digests.out.signed'),
-                )
-            else:
-                subprocess.check_call(
-                    insert_command + [
-                        os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
-                        os.path.join(self.asset_dir, 'testpkg-%s.noarch.rpm.hdr.sig' % pkg),
-                        os.path.join(self.asset_dir, 'digests.out.signed'),
-                    ]
-                )
+            insert_command(pkg)
 
             res = subprocess.check_output(
                 [
