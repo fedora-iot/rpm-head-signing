@@ -140,6 +140,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         self._test_insert_ima_valgrind('splice_header')
 
     def _test_insert_ima_valgrind(self, insert_mode):
+        if os.environ.get('SKIP_VALGRIND'):
+            raise unittest.SkipTest('Valgrind tests are disabled')
         valgrind_logfile = os.environ.get(
             'VALGRIND_LOG_FILE',
             '%s/valgrind.log' % self.tmpdir,
