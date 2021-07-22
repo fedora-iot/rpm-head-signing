@@ -56,7 +56,7 @@ def extract_header(input_path, header_out_path, digest_out_path):
                 df.write("%s %s\n" % (file_digestalgo, digest))
 
 
-if __name__ == "__main__":
+def _main():
     import sys
 
     if len(sys.argv) != 4:
@@ -65,3 +65,7 @@ if __name__ == "__main__":
         )
 
     extract_header(sys.argv[1], sys.argv[2], sys.argv[3])
+
+
+if __name__ == "__main__":
+    _main()
