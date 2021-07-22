@@ -23,7 +23,7 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
         return_header = 0
 
     # Add RSA Header record
-    with open(sig_path, 'rb') as sigfile:
+    with open(sig_path, "rb") as sigfile:
         rpm_signature = bytearray(sigfile.read())
 
     # Add IMA signature record
@@ -35,10 +35,10 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
         )
     else:
         ima_signature_lookup = {}
-        with open(ima_presigned_path, 'r') as sigpath:
+        with open(ima_presigned_path, "r") as sigpath:
             for line in sigpath.readlines():
-                algo, digest, signature = line.strip().split(' ')
-                signature = binascii.hexlify(b'\x03' + base64.b64decode(signature))
+                algo, digest, signature = line.strip().split(" ")
+                signature = binascii.hexlify(b"\x03" + base64.b64decode(signature))
                 if algo not in ima_signature_lookup:
                     ima_signature_lookup[algo] = {}
                 ima_signature_lookup[algo][digest.lower()] = signature
@@ -51,7 +51,7 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) == 3:
