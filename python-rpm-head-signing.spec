@@ -24,13 +24,13 @@ BuildRequires:  python%{python3_pkgversion}-devel
 BuildRequires:  python%{python3_pkgversion}-setuptools
 %endif
 %if %{with python2}
-BuildRequires:	python2-devel
-BuildRequires:	python2-setuptools
+BuildRequires:  python2-devel
+BuildRequires:  python2-setuptools
 %endif
 BuildRequires:  gcc
 BuildRequires:  openssl-devel
 BuildRequires:  ima-evm-utils-devel
-BuildRequires:	rpm-devel
+BuildRequires:  rpm-devel
 
 %{?python_enable_dependency_generator}
 
@@ -81,6 +81,10 @@ Python tools for signing RPMs without sending over the full RPM.
 
 %prep
 %autosetup -p1 -n rpm-head-signing-%{version}
+for lib in rpm_head_signing/*.py; do
+ sed '1{\@^#!/usr/bin/env python@d}' $lib > $lib.new
+ mv $lib.new $lib
+done
 
 
 %build
