@@ -287,8 +287,10 @@ def alternative_evmctl_check(file_path, pubkey):
             crypto_serialization.Encoding.X962,
             crypto_serialization.PublicFormat.UncompressedPoint,
         )
+        # Security explanation: SHA1 is the defined function to use for this.
+        # It's bad, but it's what we are supposed to use.
         keybytes_digester = Hash(
-            SHA1(),
+            SHA1(),  # nosec
             backend=default_backend(),
         )
         keybytes_digester.update(keybytes)
