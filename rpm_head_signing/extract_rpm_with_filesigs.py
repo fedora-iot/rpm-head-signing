@@ -9,20 +9,20 @@ import rpm
 import xattr
 
 
-rpm_version = subprocess.check_output(['rpm', '--version'])
-rpm_version = tuple(map(int, rpm_version.strip().split(b' ')[2].split(b'.')))
+rpm_version = subprocess.check_output(["rpm", "--version"])
+rpm_version = tuple(map(int, rpm_version.strip().split(b" ")[2].split(b".")))
 if rpm_version[0] != 4:
-    raise Exception('RPM version %s is not major version 4' % rpm_version)
+    raise Exception("RPM version %s is not major version 4" % rpm_version)
 
 
 def _extract_rpm(rpm_path, output_path):
     # To deal with zstd on RPM 4.11
     if rpm_version[1] == 11:
-        rpm2cpio = './test_assets/rpm2cpio.sh'
+        rpm2cpio = "./test_assets/rpm2cpio.sh"
     else:
-        rpm2cpio = 'rpm2cpio'
+        rpm2cpio = "rpm2cpio"
 
-    with TemporaryFile(prefix='rpm-', suffix='.cpio') as cpiof:
+    with TemporaryFile(prefix="rpm-", suffix=".cpio") as cpiof:
         subprocess.check_call(
             [
                 rpm2cpio,
@@ -33,11 +33,11 @@ def _extract_rpm(rpm_path, output_path):
         cpiof.seek(0, 0)
         subprocess.check_call(
             [
-                'cpio',
-                '--extract',
-                '--make-directories',
-                '--no-preserve-owner',
-                '--no-absolute-filenames',
+                "cpio",
+                "--extract",
+                "--make-directories",
+                "--no-preserve-owner",
+                "--no-absolute-filenames",
             ],
             stdin=cpiof,
             cwd=output_path,
@@ -64,13 +64,13 @@ def _get_header_type_8(raw_hdr, tag):
     filesigs = []
     for i in range(count):
         if sys.version_info.major == 2:
-            end = raw_hdr.header.find('\0', pos)
+            end = raw_hdr.header.find("\0", pos)
         elif sys.version_info.major == 3:
-            end = raw_hdr.header.find(b'\0', pos)
+            end = raw_hdr.header.find(b"\0", pos)
         else:
             raise Exception("Unsupported Python")
         filesig = raw_hdr.header[pos:end]
-        filesig = filesig.decode('utf8')
+        filesig = filesig.decode("utf8")
         filesig = bytearray.fromhex(filesig)
         filesigs.append(filesig)
         pos = end + 1
@@ -91,9 +91,15 @@ def _extract_filesigs(rpm_path):
     basenames = rpm_hdr[rpm.RPMTAG_BASENAMES]
 
     if len(basenames) != len(filesigs):
-        raise Exception("Invalid number of file signatures (%d) for basenames (%d)" % (len(filesigs), len(basenames)))
+        raise Exception(
+            "Invalid number of file signatures (%d) for basenames (%d)"
+            % (len(filesigs), len(basenames))
+        )
     if len(diridxs) != len(basenames):
-        raise Exception("Invalid number of diridxs (%d) for basenames (%d)" % (len(diridxs), len(basenames)))
+        raise Exception(
+            "Invalid number of diridxs (%d) for basenames (%d)"
+            % (len(diridxs), len(basenames))
+        )
 
     signatures = {}
 
@@ -110,8 +116,8 @@ def _extract_filesigs(rpm_path):
 
 def _install_filesigs(signatures, output_path):
     for path in signatures:
-        full_path = os.path.join(output_path, path.lstrip('/'))
-        xattr.setxattr(full_path, 'user.ima', signatures[path])
+        full_path = os.path.join(output_path, path.lstrip("/"))
+        xattr.setxattr(full_path, "user.ima", signatures[path])
 
 
 def extract_rpm_with_filesigs(rpm_path, output_path):
@@ -120,10 +126,10 @@ def extract_rpm_with_filesigs(rpm_path, output_path):
     _install_filesigs(filesigs, output_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) != 3:
-        raise Exception('Call: %s <rpm-path> <output-path>' % sys.argv[0])
+        raise Exception("Call: %s <rpm-path> <output-path>" % sys.argv[0])
 
     extract_rpm_with_filesigs(sys.argv[1], sys.argv[2])

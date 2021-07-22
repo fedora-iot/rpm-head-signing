@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 import rpm
-from koji import (RawHeader, get_rpm_header, rpm_hdr_size, find_rpm_sighdr, RPM_TAG_FILEDIGESTALGO, RPM_FILEDIGESTALGO_IDS)
+from koji import (
+    RawHeader,
+    get_rpm_header,
+    rpm_hdr_size,
+    find_rpm_sighdr,
+    RPM_TAG_FILEDIGESTALGO,
+    RPM_FILEDIGESTALGO_IDS,
+)
 
 
 RPMTAG_PAYLOADDIGEST = 5092
@@ -49,10 +56,12 @@ def extract_header(input_path, header_out_path, digest_out_path):
                 df.write("%s %s\n" % (file_digestalgo, digest))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) != 4:
-        raise Exception("Call: %s <input-rpm> <output-hdr> <output-digests>" % sys.argv[0])
+        raise Exception(
+            "Call: %s <input-rpm> <output-hdr> <output-digests>" % sys.argv[0]
+        )
 
     extract_header(sys.argv[1], sys.argv[2], sys.argv[3])
