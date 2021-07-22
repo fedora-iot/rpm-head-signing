@@ -5,6 +5,23 @@ on:
 name: Continuous integration
 
 jobs:
+  static_analysis:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install tools
+      run: |
+        pip install black bandit
+
+    - name: Run black check
+      run: |
+        black --check .
+
+    - name: Run bandit check
+      run: |
+        bandit -ll -r .
+
   tests_fedora:
     runs-on: ubuntu-latest
     container: fedora:latest
