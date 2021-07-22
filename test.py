@@ -140,6 +140,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         self._test_insert_ima_valgrind('splice_header')
 
     def _test_insert_ima_valgrind(self, insert_mode):
+        if os.environ.get('SKIP_VALGRIND'):
+            raise unittest.SkipTest('Valgrind tests are disabled')
         valgrind_logfile = os.environ.get(
             'VALGRIND_LOG_FILE',
             '%s/valgrind.log' % self.tmpdir,
@@ -213,6 +215,19 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b'Header V3 RSA' in res)
             self.assertTrue(b'15f712be: ok' in res.lower())
 
+            siginfos = rpm_head_signing.get_rpm_ima_signature_info(
+                os.path.join(self.tmpdir, 'testpkg-%s.noarch.rpm' % pkg),
+            )
+            if siginfos is None:
+                raise Exception("No IMA signatures found")
+            CORRECT_KEY_ID = '379efb19'
+            for path in siginfos:
+                siginfo = siginfos[path]
+                if siginfo['error']:
+                    raise Exception("Siginfo parsing for path %s resulted in error: %s" % (path, siginfo['error']))
+                if siginfo['user_readable_key_id'] != CORRECT_KEY_ID:
+                    raise Exception("User readable key ID is %s, not %s" % (siginfo['user_readable_key_id'], CORRECT_KEY_ID))
+
             extracted_dir = os.path.join(self.tmpdir, 'testpkg-%s.noarch.extracted' % pkg)
 
             os.mkdir(extracted_dir)
@@ -256,55 +271,43 @@ def alternative_evmctl_check(file_path, pubkey):
     # In RHEL7, evmctl is too old, so we won't be able to run the
     #  evmctl check
     ima_sig = bytearray(xattr.getxattr(file_path, 'user.ima'))
-    if ima_sig[0] != 3:
-        raise Exception("IMA signature has wrong prefix (%s)" % ima_sig[0])
-    if ima_sig[1] != 2:
-        raise Exception("IMA signature has wrong version (%s)" % ima_sig[1])
-    algo_id = ima_sig[2]
-    if algo_id == 7:  # SHA224
-        hasher = hashlib.sha224()
-        crypto_algo = crypto_hashes.SHA224()
-    elif algo_id == 4:  # SHA256
-        hasher = hashlib.sha256()
-        crypto_algo = crypto_hashes.SHA256()
-    elif algo_id == 5:  # SHA384
-        hasher = hashlib.sha384()
-        crypto_algo = crypto_hashes.SHA384()
-    elif algo_id == 6:  # SHA512
-        hasher = hashlib.sha512()
-        crypto_algo = crypto_hashes.SHA512()
-    else:
-        raise Exception("IMA signature has invalid algo: %d" % algo_id)
-    crypto_algo = Prehashed(crypto_algo)
+    ima_sig_info = rpm_head_signing.parse_ima_signature(ima_sig)
+    if ima_sig_info['error']:
+        raise Exception("Error parsing IMA signature: %s" % ima_sig_info['error'])
+    if ima_sig_info['type'] != 3:
+        raise Exception("IMA signature has wrong prefix (%s)" % ima_sig_info['type'])
+    if ima_sig_info['version'] != 2:
+        raise Exception("IMA signature has wrong version (%s)" % ima_sig_info['version'])
     if sys.version_info.major == 3:
         # X962 is only supported on Cryptography 2.5+
         # We are a bit lazy and just check for py3 instead of checking this more carefully
 
         # Check the Key ID
-        key_id = ima_sig[3:7]
         keybytes = pubkey.public_bytes(
             crypto_serialization.Encoding.X962,
             crypto_serialization.PublicFormat.UncompressedPoint,
         )
-        keybytes_digester = Hash(SHA1())
+        keybytes_digester = Hash(
+            SHA1(),
+            backend=default_backend(),
+        )
         keybytes_digester.update(keybytes)
         keybytes_digest = keybytes_digester.finalize()
         correct_keyid = keybytes_digest[-4:]
-        if correct_keyid != key_id:
-            raise Exception("IMA signature has invalid key ID: %s != %s" % (correct_keyid, key_id))
+        if correct_keyid != ima_sig_info['key_id']:
+            raise Exception("IMA signature has invalid key ID: %s != %s" % (correct_keyid, ima_sig_info['key_id']))
     # Check the signature itself
-    (sig_size,) = struct.unpack('>H', ima_sig[7:9])
-    sig = ima_sig[9:]
-    if len(sig) != sig_size:
-        raise Exception("IMA signature size invalid: %d != %d" % (len(sig), sig_size))
-
+    hasher = Hash(
+        ima_sig_info['hashing_algorithm'],
+        backend=default_backend(),
+    )
     with open(file_path, 'rb') as f:
         hasher.update(f.read())
-        file_digest = hasher.digest()
+        file_digest = hasher.finalize()
     pubkey.verify(
-        bytes(sig),
+        ima_sig_info['signature'],
         bytes(file_digest),
-        crypto_ec.ECDSA(crypto_algo),
+        ima_sig_info['algorithm'],
     )
 
 
