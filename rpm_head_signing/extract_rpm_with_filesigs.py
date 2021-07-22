@@ -77,10 +77,13 @@ def _get_header_type_8(raw_hdr, tag):
     return filesigs
 
 
-def _extract_filesigs(rpm_path, output_path):
+def _extract_filesigs(rpm_path):
     sighdr = rip_rpm_sighdr(rpm_path)
     sighdr = RawHeader(sighdr)
     filesigs = _get_header_type_8(sighdr, RPMSIGTAG_FILESIGNATURES)
+
+    if not filesigs:
+        return None
 
     rpm_hdr = get_rpm_header(rpm_path)
     diridxs = rpm_hdr[rpm.RPMTAG_DIRINDEXES]
@@ -92,21 +95,29 @@ def _extract_filesigs(rpm_path, output_path):
     if len(diridxs) != len(basenames):
         raise Exception("Invalid number of diridxs (%d) for basenames (%d)" % (len(diridxs), len(basenames)))
 
+    signatures = {}
+
     for i in range(len(basenames)):
         basename = basenames[i]
         dirname = dirnames[diridxs[i]]
-        if dirname.startswith('/'):
-            dirname = dirname[1:]
-        full_path = os.path.join(output_path, dirname, basename)
         filesig = filesigs[i]
         if sys.version_info.major == 2:
             filesig = bytes(filesig)
-        xattr.setxattr(full_path, 'user.ima', filesig)
+        signatures[os.path.join(dirname, basename)] = filesig
+
+    return signatures
+
+
+def _install_filesigs(signatures, output_path):
+    for path in signatures:
+        full_path = os.path.join(output_path, path.lstrip('/'))
+        xattr.setxattr(full_path, 'user.ima', signatures[path])
 
 
 def extract_rpm_with_filesigs(rpm_path, output_path):
     _extract_rpm(rpm_path, output_path)
-    _extract_filesigs(rpm_path, output_path)
+    filesigs = _extract_filesigs(rpm_path)
+    _install_filesigs(filesigs, output_path)
 
 
 if __name__ == '__main__':
