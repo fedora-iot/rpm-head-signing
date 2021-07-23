@@ -235,7 +235,12 @@ class TestRpmHeadSigning(unittest.TestCase):
             print(log)
             print("---- END OF VALGRIND LOG ----")
         if "insertlib.c" in log:
-            raise Exception("insertlib.c found in the Valgrind log")
+            if os.environ.get("VALGRIND_ALLOW_INSERTLIB"):
+                print(
+                    "Would normally have failed the test due to insertlib.c found in valgrind log"
+                )
+            else:
+                raise Exception("insertlib.c found in the Valgrind log")
 
     def _add_gpg_key(self, key_file_name):
         subprocess.check_call(
