@@ -109,7 +109,10 @@ def _extract_filesigs(rpm_path):
         filesig = filesigs[i]
         if sys.version_info.major == 2:
             filesig = bytes(filesig)
-        signatures[os.path.join(dirname, basename)] = filesig
+        path = os.path.join(dirname, basename)
+        if not isinstance(path, str):
+            path = path.decode("utf8")
+        signatures[path] = filesig
 
     return signatures
 
