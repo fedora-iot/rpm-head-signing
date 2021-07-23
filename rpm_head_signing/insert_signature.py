@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 import base64
 import binascii
-import subprocess
-from tempfile import mkdtemp
-import os.path
-import shutil
-import struct
 
 from .insertlib import insert_signatures as insertlib_insert_signatures
 
