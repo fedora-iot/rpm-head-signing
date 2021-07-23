@@ -41,8 +41,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         with open(os.path.join(self.asset_dir, asset_name), "rb") as asset_file:
             with open(os.path.join(self.tmpdir, tmp_name), "rb") as tmp_file:
                 self.assertEqual(
-                    asset_file.read(),
-                    tmp_file.read(),
+                    asset_file.read().strip(),
+                    tmp_file.read().strip(),
                     "Asset file %s is different from tmp file %s"
                     % (asset_name, tmp_name),
                 )
