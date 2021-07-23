@@ -22,6 +22,31 @@ jobs:
       run: |
         bandit -ll -r .
 
+  test_ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install apt deps
+        run: |
+          sudo apt-get install -y \
+            python3 librpm-dev python3-rpm python3-pip python3-setuptools python3-dateutil \
+            python3-requests python3-gssapi python3-pyxattr rpm valgrind ima-evm-utils
+
+      - name: Install pip deps
+        run: |
+          pip3 install koji
+
+      - name: Build insertlib
+        run: |
+          python3 setup.py build_ext -i
+
+      - name: Run test
+        run: |
+          # We allow insertlib to be found in the valgrind output because the RPM version on Ubuntu is doing
+          # weird things.
+          ONLY_ALTERNATIVE_EVMCTL_CHECK=true PRINT_VALGRIND_LOG=1 VALGRIND_ALLOW_INSERTLIB=true python3 test.py
+
   tests_fedora:
     runs-on: ubuntu-latest
     container: fedora:latest
