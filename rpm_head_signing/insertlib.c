@@ -481,7 +481,7 @@ out:
     free(trpm);
     free(msg);
 #ifdef RPM_411
-    if (sigtd->data != NULL) free(sigtd->data);
+    if (sigtd != NULL && sigtd->data != NULL) free(sigtd->data);
 #endif
     if (sigtd != NULL) rpmtdFree(sigtd);
 
