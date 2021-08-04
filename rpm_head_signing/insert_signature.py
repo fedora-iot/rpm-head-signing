@@ -17,9 +17,12 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
     else:
         return_header = 0
 
-    # Add RSA Header record
-    with open(sig_path, "rb") as sigfile:
-        rpm_signature = bytearray(sigfile.read())
+    if sig_path:
+        # Add RSA Header record
+        with open(sig_path, "rb") as sigfile:
+            rpm_signature = bytearray(sigfile.read())
+    else:
+        rpm_signature = None
 
     # Add IMA signature record
     if ima_presigned_path is None:

@@ -134,7 +134,7 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b"Header V3 RSA" in res)
             self.assertTrue(b"15f712be: ok" in res.lower())
 
-    def test_insert_ima(self):
+    def test_insert_ima_presigned(self):
         def insert_cb(pkg):
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
@@ -142,15 +142,31 @@ class TestRpmHeadSigning(unittest.TestCase):
                 ima_presigned_path=os.path.join(self.asset_dir, "digests.out.signed"),
             )
 
-        self._ima_insertion_test(insert_cb)
+        self._ima_insertion_test(insert_cb, "15f712be")
+
+    def test_insert_ima_presigned_nonhdrsigned(self):
+        def insert_cb(pkg):
+            rpm_head_signing.insert_signature(
+                os.path.join(self.tmpdir, "testpkg-%s.signed.noarch.rpm" % pkg),
+                None,
+                ima_presigned_path=os.path.join(self.asset_dir, "digests.out.signed"),
+            )
+
+        self._ima_insertion_test(insert_cb, "9ab51e50", nonhdrsigned=True)
 
     def test_insert_ima_valgrind_normal(self):
-        self._test_insert_ima_valgrind("normal")
+        self._test_insert_ima_valgrind("normal", "15f712be")
+
+    def test_insert_ima_valgrind_normal_nonhdrsigned(self):
+        self._test_insert_ima_valgrind("normal", "9ab51e50", nonhdrsigned=True)
 
     def test_insert_ima_valgrind_splice_header(self):
-        self._test_insert_ima_valgrind("splice_header")
+        self._test_insert_ima_valgrind("splice_header", "15f712be")
 
-    def _test_insert_ima_valgrind(self, insert_mode):
+    def test_insert_ima_valgrind_splice_header_nonhdrsigned(self):
+        self._test_insert_ima_valgrind("splice_header", "9ab51e50", nonhdrsigned=True)
+
+    def _test_insert_ima_valgrind(self, insert_mode, rpm_keyid, nonhdrsigned=False):
         if os.environ.get("SKIP_VALGRIND"):
             raise unittest.SkipTest("Valgrind tests are disabled")
         valgrind_logfile = os.environ.get(
@@ -171,16 +187,26 @@ class TestRpmHeadSigning(unittest.TestCase):
                 "test_insert.py",
                 insert_mode,
             ]
+            if nonhdrsigned:
+                rpm_path = os.path.join(
+                    self.tmpdir, "testpkg-%s.signed.noarch.rpm" % pkg
+                )
+                sig_path = "none"
+            else:
+                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg)
+                sig_path = os.path.join(
+                    self.asset_dir, "testpkg-%s.noarch.rpm.hdr.sig" % pkg
+                )
             subprocess.check_call(
                 insert_command
                 + [
-                    os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
-                    os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm.hdr.sig" % pkg),
+                    rpm_path,
+                    sig_path,
                     os.path.join(self.asset_dir, "digests.out.signed"),
                 ]
             )
 
-        self._ima_insertion_test(insert_cb)
+        self._ima_insertion_test(insert_cb, rpm_keyid, nonhdrsigned=nonhdrsigned)
 
         with open(valgrind_logfile, "r") as logfile:
             log = logfile.read()
@@ -191,15 +217,25 @@ class TestRpmHeadSigning(unittest.TestCase):
         if "insertlib.c" in log:
             raise Exception("insertlib.c found in the Valgrind log")
 
-    def _ima_insertion_test(self, insert_command):
-        copy(
-            os.path.join(self.asset_dir, "gpgkey.asc"),
-            os.path.join(self.tmpdir, "gpgkey.key"),
-        )
-        for pkg in self.pkg_numbers:
+    def _ima_insertion_test(self, insert_command, rpm_keyid, nonhdrsigned=False):
+        if nonhdrsigned:
             copy(
-                os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm" % pkg),
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                os.path.join(self.asset_dir, "puiterwijk.gpgkey.asc"),
+                os.path.join(self.tmpdir, "gpgkey.key"),
+            )
+        else:
+            copy(
+                os.path.join(self.asset_dir, "gpgkey.asc"),
+                os.path.join(self.tmpdir, "gpgkey.key"),
+            )
+        for pkg in self.pkg_numbers:
+            if nonhdrsigned:
+                rpm_filename = "testpkg-%s.signed.noarch.rpm" % pkg
+            else:
+                rpm_filename = "testpkg-%s.noarch.rpm" % pkg
+            copy(
+                os.path.join(self.asset_dir, rpm_filename),
+                os.path.join(self.tmpdir, rpm_filename),
             )
             res = subprocess.check_output(
                 [
@@ -209,7 +245,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     "--define",
                     "%%_keyringpath %s" % self.tmpdir,
                     "-Kv",
-                    os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                    os.path.join(self.tmpdir, rpm_filename),
                 ],
             )
             self.assertTrue(b"SHA1 digest: OK" in res)
@@ -225,15 +261,15 @@ class TestRpmHeadSigning(unittest.TestCase):
                     "--define",
                     "%%_keyringpath %s" % self.tmpdir,
                     "-Kvvvv",
-                    os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                    os.path.join(self.tmpdir, rpm_filename),
                 ],
             )
             self.assertTrue(b"SHA1 digest: OK" in res)
-            self.assertTrue(b"Header V3 RSA" in res)
-            self.assertTrue(b"15f712be: ok" in res.lower())
+            msg = ("%s: ok" % rpm_keyid).encode("utf8")
+            self.assertTrue(msg in res.lower())
 
             siginfos = rpm_head_signing.get_rpm_ima_signature_info(
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                os.path.join(self.tmpdir, rpm_filename),
             )
             if siginfos is None:
                 raise Exception("No IMA signatures found")
@@ -252,13 +288,14 @@ class TestRpmHeadSigning(unittest.TestCase):
                     )
 
             extracted_dir = os.path.join(
-                self.tmpdir, "testpkg-%s.noarch.extracted" % pkg
+                self.tmpdir,
+                rpm_filename.rstrip(".rpm"),
             )
 
             os.mkdir(extracted_dir)
 
             rpm_head_signing.extract_rpm_with_filesigs(
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                os.path.join(self.tmpdir, rpm_filename),
                 extracted_dir,
             )
 
