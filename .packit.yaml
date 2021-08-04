@@ -1,0 +1,12 @@
+specfile_path: python-rpm-head-signing.spec
+
+synced_files:
+    - python-rpm-head-signing.spec
+    - .packit.yaml
+
+upstream_package_name: rpm-head-signing
+upstream_project_url: https://github.com/fedora-iot/rpm-head-signing
+downstream_package_name: python-rpm-head-signing
+
+actions:
+    get-current-version: 'python3 setup.py --version'

@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 import base64
 import binascii
-import subprocess
-from tempfile import mkdtemp
-import os.path
-import shutil
-import struct
 
 from .insertlib import insert_signatures as insertlib_insert_signatures
 
@@ -51,7 +46,7 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
         )
 
 
-if __name__ == "__main__":
+def _main():
     import sys
 
     if len(sys.argv) == 3:
@@ -62,3 +57,7 @@ if __name__ == "__main__":
         raise Exception("Call: %s <rpm-path> <header-signature> [ima_presigned_path]")
 
     insert_signature(sys.argv[1], sys.argv[2], ima_presigned_path)
+
+
+if __name__ == "__main__":
+    _main()

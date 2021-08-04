@@ -126,10 +126,12 @@ def extract_rpm_with_filesigs(rpm_path, output_path):
     _install_filesigs(filesigs, output_path)
 
 
-if __name__ == "__main__":
-    import sys
-
+def _main():
     if len(sys.argv) != 3:
         raise Exception("Call: %s <rpm-path> <output-path>" % sys.argv[0])
 
     extract_rpm_with_filesigs(sys.argv[1], sys.argv[2])
+
+
+if __name__ == "__main__":
+    _main()
