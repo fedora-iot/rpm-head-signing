@@ -13,6 +13,9 @@ if __name__ == "__main__":
     sig_path = sys.argv[3]
     ima_path = sys.argv[4]
 
+    if sig_path == "none":
+        sig_path = None
+
     if mode == "normal":
         rpm_head_signing.insert_signature(
             rpm_path,

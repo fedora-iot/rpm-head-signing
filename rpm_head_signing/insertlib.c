@@ -226,8 +226,28 @@ insert_signatures(PyObject *self, PyObject *args)
     rpmlead lead = NULL;
 #endif
 
-    if (!PyArg_ParseTuple(args, "isO!|O!", &return_header, &rpm_path, &PyByteArray_Type, &signature, &PyDict_Type, &ima_lookup))
+    if (!PyArg_ParseTuple(args, "isO|O:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup))
         return NULL;
+
+    if (signature == Py_None) {
+        // We should not decrement the refcount of the in-arguments, so we can just set it to NULL
+        signature = NULL;
+    } else if (Py_TYPE(signature) != &PyByteArray_Type) {
+        PyErr_SetString(PyExc_TypeError, "Signature is not None or ByteArray");
+        goto out;
+    }
+    if (ima_lookup == Py_None || ima_lookup == NULL) {
+        // We should not decrement the refcount of the in-arguments, so we can just set it to NULL
+        ima_lookup = NULL;
+    } else if (Py_TYPE(ima_lookup) != &PyDict_Type) {
+        PyErr_SetString(PyExc_TypeError, "IMA lookup is not None or Dict");
+        goto out;
+    }
+
+    if (signature == NULL && ima_lookup == NULL) {
+        PyErr_SetString(PyExc_Exception, "No signature or ima_lookup provided");
+        goto out;
+    }
 
     rpm_fd = Fopen(rpm_path, "r+.ufdio");
     if (rpm_fd == NULL || Ferror(rpm_fd)) {
@@ -277,43 +297,45 @@ insert_signatures(PyObject *self, PyObject *args)
     unsigned int origSigSize = headerSizeof(sigh, HEADER_MAGIC_YES);
 #endif
 
-    // Insert v4 signature header
-    const unsigned char *signature_buf = (unsigned char *)PyByteArray_AsString(signature);
-    Py_ssize_t signature_len = PyByteArray_Size(signature);
-    if (pgpPrtParams(signature_buf, signature_len, PGPTAG_SIGNATURE, &sigp) != RPMRC_OK) {
-        PyErr_SetString(PyExc_Exception, "Unsupported PGP signature");
-        goto out;
-    }
-    unsigned int pubkey_algo = pgpDigParamsAlgo(sigp, PGPVAL_PUBKEYALGO);
-    rpmTagVal sigtag;
-    switch (pubkey_algo) {
-        case PGPPUBKEYALGO_DSA:
-            sigtag = RPMSIGTAG_DSA;
-            break;
-        case PGPPUBKEYALGO_RSA:
-            sigtag = RPMSIGTAG_RSA;
-            break;
-        default:
-            PyErr_Format(PyExc_Exception, "Unsupported PGP signature algorithm %u", pubkey_algo);
+    if (signature != NULL) {
+        // Insert v4 signature header
+        const unsigned char *signature_buf = (unsigned char *)PyByteArray_AsString(signature);
+        Py_ssize_t signature_len = PyByteArray_Size(signature);
+        if (pgpPrtParams(signature_buf, signature_len, PGPTAG_SIGNATURE, &sigp) != RPMRC_OK) {
+            PyErr_SetString(PyExc_Exception, "Unsupported PGP signature");
             goto out;
-    }
+        }
+        unsigned int pubkey_algo = pgpDigParamsAlgo(sigp, PGPVAL_PUBKEYALGO);
+        rpmTagVal sigtag;
+        switch (pubkey_algo) {
+            case PGPPUBKEYALGO_DSA:
+                sigtag = RPMSIGTAG_DSA;
+                break;
+            case PGPPUBKEYALGO_RSA:
+                sigtag = RPMSIGTAG_RSA;
+                break;
+            default:
+                PyErr_Format(PyExc_Exception, "Unsupported PGP signature algorithm %u", pubkey_algo);
+                goto out;
+        }
 
-    sigtd = rpmtdNew();
-    sigtd->count = signature_len;
-    sigtd->data = malloc(signature_len);
-    if (sigtd->data == NULL) {
-        PyErr_SetString(PyExc_Exception, "Error allocating memory for signature copy");
-        goto out;
-    }
-    memcpy(sigtd->data, signature_buf, signature_len);
-    sigtd->type = RPM_BIN_TYPE;
-    sigtd->tag = sigtag;
-    sigtd->flags |= RPMTD_ALLOCED;
+        sigtd = rpmtdNew();
+        sigtd->count = signature_len;
+        sigtd->data = malloc(signature_len);
+        if (sigtd->data == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error allocating memory for signature copy");
+            goto out;
+        }
+        memcpy(sigtd->data, signature_buf, signature_len);
+        sigtd->type = RPM_BIN_TYPE;
+        sigtd->tag = sigtag;
+        sigtd->flags |= RPMTD_ALLOCED;
 
-    // For some reason, rpmRC isn't used here, and 0 - failure, 1 - success
-    if (headerPut(sigh, sigtd, HEADERPUT_DEFAULT) != 1) {
-        PyErr_SetString(PyExc_Exception, "Error setting signature header");
-        goto out;
+        // For some reason, rpmRC isn't used here, and 0 - failure, 1 - success
+        if (headerPut(sigh, sigtd, HEADERPUT_DEFAULT) != 1) {
+            PyErr_SetString(PyExc_Exception, "Error setting signature header");
+            goto out;
+        }
     }
 
     // Insert IMA signatures
