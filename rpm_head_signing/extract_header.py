@@ -17,10 +17,18 @@ class NonHeaderSignablePackage(ValueError):
     pass
 
 
+def _to_str(x):
+    if not isinstance(x, str):
+        return x.decode("utf8")
+    else:
+        return x
+
+
 def _get_filedigests(rpm_hdr):
     file_digestalgo = rpm_hdr[RPM_TAG_FILEDIGESTALGO]
     file_digestalgo = RPM_FILEDIGESTALGO_IDS[file_digestalgo].lower()
-    return file_digestalgo, [x.upper() for x in rpm_hdr[rpm.RPMTAG_FILEDIGESTS]]
+    digests = [_to_str(x).upper() for x in rpm_hdr[rpm.RPMTAG_FILEDIGESTS]]
+    return file_digestalgo, digests
 
 
 def check_header_signable(data):
