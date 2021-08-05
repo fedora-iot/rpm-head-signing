@@ -170,11 +170,12 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
     while (rpmfiNext(fi) >= 0) {
         char *digest = rpmfiFDigestHex(fi, NULL);
         PyObject *signature = PyDict_GetItemString(ima_values_lookup, digest);
-        free(digest);
         if (signature == NULL) {
-            PyErr_SetString(PyExc_Exception, "File encountered for which no signature was found");
+            PyErr_Format(PyExc_Exception, "File digest encountered for which no signature was found: %s", digest);
+            free(digest);
             goto out;
         }
+        free(digest);
         const char *sigstr = PyBytes_AsString(signature);
         if (sigstr == NULL) {
             // AsString sets the error
