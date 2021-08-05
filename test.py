@@ -154,6 +154,32 @@ class TestRpmHeadSigning(unittest.TestCase):
 
         self._ima_insertion_test(insert_cb, "9ab51e50", nonhdrsigned=True)
 
+    def test_insert_ima_byteorder_wrong(self):
+        copy(
+            os.path.join(self.asset_dir, "centos-stream-release-9.0-1.c9s.noarch.rpm"),
+            os.path.join(self.tmpdir, "centos-stream-release-9.0-1.c9s.noarch.rpm"),
+        )
+        rpm_head_signing.insert_signature(
+            os.path.join(self.tmpdir, "centos-stream-release-9.0-1.c9s.noarch.rpm"),
+            None,
+            os.path.join(self.asset_dir, "centos-stream.ima.digests.signed"),
+        )
+
+        if os.environ.get("SKIP_BYTEORDER_CHECK"):
+            raise unittest.SkipTest(
+                "Skipping remainer of byteorder test due to RPM bug"
+            )
+        siginfos = rpm_head_signing.get_rpm_ima_signature_info(
+            os.path.join(self.tmpdir, "centos-stream-release-9.0-1.c9s.noarch.rpm"),
+        )
+        for path in siginfos:
+            sig = siginfos[path]
+            self.assertEqual(
+                sig["error"],
+                None,
+                "Signature for %s had an error: %s" % (path, sig["error"]),
+            )
+
     def test_insert_ima_valgrind_normal(self):
         self._test_insert_ima_valgrind("normal", "15f712be")
 
