@@ -76,4 +76,4 @@ jobs:
 
       - name: Run tests
         run: |
-          ONLY_ALTERNATIVE_EVMCTL_CHECK=true PRINT_VALGRIND_LOG=1 python test.py
+          ONLY_ALTERNATIVE_EVMCTL_CHECK=true SKIP_BYTEORDER_CHECK=true PRINT_VALGRIND_LOG=1 python test.py

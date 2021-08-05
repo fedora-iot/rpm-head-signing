@@ -1,8 +1,26 @@
 #!/usr/bin/env python
 import base64
 import binascii
+import struct
 
 from .insertlib import insert_signatures as insertlib_insert_signatures
+
+
+def _fix_sig_size_byteorder(signature):
+    sig_size_orig = struct.unpack(">H", signature[6:8])[0]
+    sig_size_reversed = struct.unpack("<H", signature[6:8])[0]
+    if sig_size_orig == (len(signature) - 8):
+        # The byte order was already correct, don't change it
+        return signature
+    elif sig_size_reversed == (len(signature) - 8):
+        print("Reversed byte-order sig_size encountered, fixing")
+        sig_size_fixed = struct.pack(">H", sig_size_reversed)
+        return signature[:6] + sig_size_fixed + signature[8:]
+    else:
+        raise Exception(
+            "Signature with invalid sig_size encountered: %d != %d"
+            % (sig_size_orig, len(signature) - 8)
+        )
 
 
 def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=False):
@@ -36,7 +54,9 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
         with open(ima_presigned_path, "r") as sigpath:
             for line in sigpath.readlines():
                 algo, digest, signature = line.strip().split(" ")
-                signature = binascii.hexlify(b"\x03" + base64.b64decode(signature))
+                signature = base64.b64decode(signature)
+                signature = _fix_sig_size_byteorder(signature)
+                signature = binascii.hexlify(b"\x03" + signature)
                 if algo not in ima_signature_lookup:
                     ima_signature_lookup[algo] = {}
                 ima_signature_lookup[algo][digest.lower()] = signature
