@@ -16,6 +16,9 @@ int rpmWriteSignature(FD_t fd, Header sigh);
 
 #if defined(RPM_415)
 
+    // There are 4.15 versions that don't have this define
+    #define RPMTAG_PAYLOADDIGESTALT 5097
+
     rpmRC rpmLeadRead(FD_t fd, char **emsg);
     rpmRC rpmLeadWrite(FD_t fd, Header h);
     rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg);
