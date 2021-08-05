@@ -49,34 +49,34 @@ class TestRpmHeadSigning(unittest.TestCase):
 
     def test_extract(self):
         rpm_head_signing.extract_header(
-            os.path.join(self.asset_dir, "testpkg-1.noarch.rpm"),
-            os.path.join(self.tmpdir, "testpkg-1.noarch.rpm.hdr.tmp"),
+            os.path.join(self.asset_dir, "testpkg-1.rpm"),
+            os.path.join(self.tmpdir, "testpkg-1.rpm.hdr.tmp"),
             os.path.join(self.tmpdir, "digests.out.tmp"),
         )
         rpm_head_signing.extract_header(
-            os.path.join(self.asset_dir, "testpkg-2.noarch.rpm"),
-            os.path.join(self.tmpdir, "testpkg-2.noarch.rpm.hdr.tmp"),
+            os.path.join(self.asset_dir, "testpkg-2.rpm"),
+            os.path.join(self.tmpdir, "testpkg-2.rpm.hdr.tmp"),
             os.path.join(self.tmpdir, "digests.out.tmp"),
         )
 
-        self.compare_files("testpkg-1.noarch.rpm.hdr", "testpkg-1.noarch.rpm.hdr.tmp")
-        self.compare_files("testpkg-2.noarch.rpm.hdr", "testpkg-2.noarch.rpm.hdr.tmp")
+        self.compare_files("testpkg-1.rpm.hdr", "testpkg-1.rpm.hdr.tmp")
+        self.compare_files("testpkg-2.rpm.hdr", "testpkg-2.rpm.hdr.tmp")
         self.compare_files("digests.out", "digests.out.tmp")
 
     def test_extract_no_digests(self):
         rpm_head_signing.extract_header(
-            os.path.join(self.asset_dir, "testpkg-1.noarch.rpm"),
-            os.path.join(self.tmpdir, "testpkg-1.noarch.rpm.hdr.tmp"),
+            os.path.join(self.asset_dir, "testpkg-1.rpm"),
+            os.path.join(self.tmpdir, "testpkg-1.rpm.hdr.tmp"),
             digest_out_path=None,
         )
         rpm_head_signing.extract_header(
-            os.path.join(self.asset_dir, "testpkg-2.noarch.rpm"),
-            os.path.join(self.tmpdir, "testpkg-2.noarch.rpm.hdr.tmp"),
+            os.path.join(self.asset_dir, "testpkg-2.rpm"),
+            os.path.join(self.tmpdir, "testpkg-2.rpm.hdr.tmp"),
             digest_out_path=None,
         )
 
-        self.compare_files("testpkg-1.noarch.rpm.hdr", "testpkg-1.noarch.rpm.hdr.tmp")
-        self.compare_files("testpkg-2.noarch.rpm.hdr", "testpkg-2.noarch.rpm.hdr.tmp")
+        self.compare_files("testpkg-1.rpm.hdr", "testpkg-1.rpm.hdr.tmp")
+        self.compare_files("testpkg-2.rpm.hdr", "testpkg-2.rpm.hdr.tmp")
 
     def test_extract_non_hdrsign_able(self):
         with self.assertRaises(rpm_head_signing.NonHeaderSignablePackage):
@@ -99,8 +99,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         )
         for pkg in self.pkg_numbers:
             copy(
-                os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm" % pkg),
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                os.path.join(self.asset_dir, "testpkg-%s.rpm" % pkg),
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
             )
             res = subprocess.check_output(
                 [
@@ -110,14 +110,14 @@ class TestRpmHeadSigning(unittest.TestCase):
                     "--define",
                     "%%_keyringpath %s" % self.tmpdir,
                     "-Kv",
-                    os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                    os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
             )
             self.assertTrue(b"SHA1 digest: OK" in res)
             self.assertFalse(b"Header V3 RSA" in res)
             rpm_head_signing.insert_signature(
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
-                os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm.hdr.sig" % pkg),
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+                os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg),
             )
             res = subprocess.check_output(
                 [
@@ -127,7 +127,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     "--define",
                     "%%_keyringpath %s" % self.tmpdir,
                     "-Kvvvvvvvv",
-                    os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
+                    os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
             )
             self.assertTrue(b"SHA1 digest: OK" in res)
@@ -137,8 +137,8 @@ class TestRpmHeadSigning(unittest.TestCase):
     def test_insert_ima_presigned(self):
         def insert_cb(pkg):
             rpm_head_signing.insert_signature(
-                os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg),
-                os.path.join(self.asset_dir, "testpkg-%s.noarch.rpm.hdr.sig" % pkg),
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+                os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg),
                 ima_presigned_path=os.path.join(self.asset_dir, "digests.out.signed"),
             )
 
@@ -147,7 +147,7 @@ class TestRpmHeadSigning(unittest.TestCase):
     def test_insert_ima_presigned_nonhdrsigned(self):
         def insert_cb(pkg):
             rpm_head_signing.insert_signature(
-                os.path.join(self.tmpdir, "testpkg-%s.signed.noarch.rpm" % pkg),
+                os.path.join(self.tmpdir, "testpkg-%s.signed.rpm" % pkg),
                 None,
                 ima_presigned_path=os.path.join(self.asset_dir, "digests.out.signed"),
             )
@@ -189,13 +189,13 @@ class TestRpmHeadSigning(unittest.TestCase):
             ]
             if nonhdrsigned:
                 rpm_path = os.path.join(
-                    self.tmpdir, "testpkg-%s.signed.noarch.rpm" % pkg
+                    self.tmpdir, "testpkg-%s.signed.rpm" % pkg
                 )
                 sig_path = "none"
             else:
-                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.noarch.rpm" % pkg)
+                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
                 sig_path = os.path.join(
-                    self.asset_dir, "testpkg-%s.noarch.rpm.hdr.sig" % pkg
+                    self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg
                 )
             subprocess.check_call(
                 insert_command
@@ -230,9 +230,9 @@ class TestRpmHeadSigning(unittest.TestCase):
             )
         for pkg in self.pkg_numbers:
             if nonhdrsigned:
-                rpm_filename = "testpkg-%s.signed.noarch.rpm" % pkg
+                rpm_filename = "testpkg-%s.signed.rpm" % pkg
             else:
-                rpm_filename = "testpkg-%s.noarch.rpm" % pkg
+                rpm_filename = "testpkg-%s.rpm" % pkg
             copy(
                 os.path.join(self.asset_dir, rpm_filename),
                 os.path.join(self.tmpdir, rpm_filename),
