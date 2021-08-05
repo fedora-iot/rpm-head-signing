@@ -6,6 +6,9 @@
 %bcond_with python3
 %endif
 
+# Without this, the resulting insertlib will segfault
+%define _lto_cflags %{nil}
+
 %define debug_package %{nil}
 
 %global pkgname rpm-head-signing
@@ -22,15 +25,27 @@ Source0:        https://github.com/fedora-iot/rpm-head-signing/archive/refs/tags
 %if %{with python3}
 BuildRequires:  python%{python3_pkgversion}-devel
 BuildRequires:  python%{python3_pkgversion}-setuptools
+BuildRequires:  python%{python3_pkgversion}-koji
+BuildRequires:  python%{python3_pkgversion}-rpm
+BuildRequires:  python%{python3_pkgversion}-cryptography
+BuildRequires:  python%{python3_pkgversion}-pyxattr
 %endif
 %if %{with python2}
 BuildRequires:  python2-devel
 BuildRequires:  python2-setuptools
+BuildRequires:  python2-koji
+BuildRequires:  python2-cryptography
+BuildRequires:  pyxattr
 %endif
 BuildRequires:  gcc
 BuildRequires:  openssl-devel
+BuildRequires:  ima-evm-utils
 BuildRequires:  ima-evm-utils-devel
 BuildRequires:  rpm-devel
+BuildRequires:  rpm-sign
+BuildRequires:  cpio
+BuildRequires:  valgrind
+BuildRequires:  zstd
 
 %{?python_enable_dependency_generator}
 
@@ -98,8 +113,6 @@ done
 
 
 %install
-rm -rf $RPM_BUILD_ROOT
-
 %if %{with python2}
 %py2_install
 %endif
@@ -110,6 +123,15 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %check
+# To make sure we get to use the installed version
+mv rpm_head_signing rpm_head_signing.orig
+
+%if %{with python2}
+PYTHONPATH=%{buildroot}%{python2_sitearch} SKIP_IMA_LIVE_CHECK=true ONLY_ALTERNATIVE_EVMCTL=true python2 test.py
+%endif
+%if %{with python3}
+PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test.py
+%endif
 
 
 %if %{with python2}

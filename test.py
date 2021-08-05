@@ -290,6 +290,11 @@ class TestRpmHeadSigning(unittest.TestCase):
 
             os.mkdir(extracted_dir)
 
+            # Skip this check in cases where we can't use user.ima xattrs
+            # This is for example the case in Fedora builds, do to tmpfs
+            if os.environ.get("SKIP_IMA_LIVE_CHECK"):
+                return
+
             rpm_head_signing.extract_rpm_with_filesigs(
                 os.path.join(self.tmpdir, rpm_filename),
                 extracted_dir,
