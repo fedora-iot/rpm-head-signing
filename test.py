@@ -188,15 +188,11 @@ class TestRpmHeadSigning(unittest.TestCase):
                 insert_mode,
             ]
             if nonhdrsigned:
-                rpm_path = os.path.join(
-                    self.tmpdir, "testpkg-%s.signed.rpm" % pkg
-                )
+                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.signed.rpm" % pkg)
                 sig_path = "none"
             else:
                 rpm_path = os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
-                sig_path = os.path.join(
-                    self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg
-                )
+                sig_path = os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg)
             subprocess.check_call(
                 insert_command
                 + [

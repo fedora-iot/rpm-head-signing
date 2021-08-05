@@ -24,11 +24,24 @@ def _to_str(x):
         return x
 
 
+def _digest_len(algo):
+    if algo == "sha256":
+        return 64
+    elif algo == "sha512":
+        return 128
+    else:
+        raise Exception("Unsupported algorithm '%s' requested" % algo)
+
+
 def _get_filedigests(rpm_hdr):
     file_digestalgo = rpm_hdr[RPM_TAG_FILEDIGESTALGO]
     file_digestalgo = RPM_FILEDIGESTALGO_IDS[file_digestalgo].lower()
     digests = [_to_str(x).upper() for x in rpm_hdr[rpm.RPMTAG_FILEDIGESTS]]
-    return file_digestalgo, digests
+    # Add a full-zero digest to get signed. This is because sometimes RPM
+    # injects files which it doesn't digest, but we do need a signature
+    # created to get inserted.
+    zeroed = "0" * _digest_len(file_digestalgo)
+    return file_digestalgo, digests + [zeroed]
 
 
 def check_header_signable(data):
@@ -57,7 +70,7 @@ def extract_header(input_path, header_out_path, digest_out_path):
 
     if digest_out_path:
         with open(digest_out_path, "at") as df:
-            for digest in file_digests:
+            for digest in sorted(file_digests):
                 digest = digest.strip()
                 if not digest:
                     continue
