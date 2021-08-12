@@ -1,19 +1,14 @@
 from tempfile import mkdtemp
-import hashlib
 from shutil import rmtree, copy
 import os
 import os.path
 import subprocess
-import struct
 import sys
 import unittest
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography.hazmat.primitives.hashes import Hash, SHA1
 import cryptography.hazmat.primitives.serialization as crypto_serialization
-import cryptography.hazmat.primitives.hashes as crypto_hashes
-import cryptography.hazmat.primitives.asymmetric.ec as crypto_ec
 from cryptography.x509 import load_der_x509_certificate
 import xattr
 
@@ -48,17 +43,27 @@ class TestRpmHeadSigning(unittest.TestCase):
                 )
 
     def test_extract(self):
-        rpm_head_signing.extract_header(
+        copy(
             os.path.join(self.asset_dir, "testpkg-1.rpm"),
+            os.path.join(self.tmpdir, "testpkg-1.input.rpm"),
+        )
+        copy(
+            os.path.join(self.asset_dir, "testpkg-2.rpm"),
+            os.path.join(self.tmpdir, "testpkg-2.input.rpm"),
+        )
+        rpm_head_signing.extract_header(
+            os.path.join(self.tmpdir, "testpkg-1.input.rpm"),
             os.path.join(self.tmpdir, "testpkg-1.rpm.hdr.tmp"),
             os.path.join(self.tmpdir, "digests.out.tmp"),
         )
         rpm_head_signing.extract_header(
-            os.path.join(self.asset_dir, "testpkg-2.rpm"),
+            os.path.join(self.tmpdir, "testpkg-2.input.rpm"),
             os.path.join(self.tmpdir, "testpkg-2.rpm.hdr.tmp"),
             os.path.join(self.tmpdir, "digests.out.tmp"),
         )
 
+        self.compare_files("testpkg-1.rpm", "testpkg-1.input.rpm")
+        self.compare_files("testpkg-2.rpm", "testpkg-2.input.rpm")
         self.compare_files("testpkg-1.rpm.hdr", "testpkg-1.rpm.hdr.tmp")
         self.compare_files("testpkg-2.rpm.hdr", "testpkg-2.rpm.hdr.tmp")
         self.compare_files("digests.out", "digests.out.tmp")
