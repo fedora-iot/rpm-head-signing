@@ -127,7 +127,7 @@ done
 mv rpm_head_signing rpm_head_signing.orig
 
 %if %{with python2}
-PYTHONPATH=%{buildroot}%{python2_sitearch} SKIP_BYTEORDER_CHECK=true SKIP_IMA_LIVE_CHECK=true ONLY_ALTERNATIVE_EVMCTL=true python2 test.py
+PYTHONPATH=%{buildroot}%{python2_sitearch} SKIP_BYTEORDER_CHECK=true SKIP_IMA_LIVE_CHECK=true ONLY_ALTERNATIVE_EVMCTL_CHECK=true python2 test.py
 %endif
 %if %{with python3}
 PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test.py

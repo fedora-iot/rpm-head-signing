@@ -6,13 +6,8 @@ import subprocess
 import sys
 import unittest
 
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.hashes import Hash, SHA1
-import cryptography.hazmat.primitives.serialization as crypto_serialization
-from cryptography.x509 import load_der_x509_certificate
-import xattr
-
 import rpm_head_signing
+import verify_rpm
 
 
 class TestRpmHeadSigning(unittest.TestCase):
@@ -178,6 +173,15 @@ class TestRpmHeadSigning(unittest.TestCase):
                 "Signature for %s had an error: %s" % (path, sig["error"]),
             )
 
+    def test_verify_rpm(self):
+        # This is a negative test (on the unsigned RPM) to ensure verify_rpm is
+        # working as expected.
+        args = self._get_verify_rpm_args()
+        args.extend([os.path.join(self.asset_dir, "testpkg-1.rpm")])
+
+        args = verify_rpm.get_args().parse_args(args)
+        self.assertFalse(verify_rpm.main(args))
+
     def test_insert_ima_valgrind_normal(self):
         self._test_insert_ima_valgrind("normal", "15f712be")
 
@@ -259,6 +263,7 @@ class TestRpmHeadSigning(unittest.TestCase):
         else:
             self._add_gpg_key("gpgkey.asc")
 
+        rpm_paths = []
         for pkg in self.pkg_numbers:
             if nonhdrsigned:
                 rpm_filename = "testpkg-%s.signed.rpm" % pkg
@@ -268,6 +273,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                 os.path.join(self.asset_dir, rpm_filename),
                 os.path.join(self.tmpdir, rpm_filename),
             )
+            rpm_paths.append(os.path.join(self.tmpdir, rpm_filename))
             res = subprocess.check_output(
                 [
                     "rpm",
@@ -295,122 +301,41 @@ class TestRpmHeadSigning(unittest.TestCase):
             msg = ("%s: ok" % rpm_keyid).encode("utf8")
             self.assertTrue(msg in res.lower())
 
-            siginfos = rpm_head_signing.get_rpm_ima_signature_info(
-                os.path.join(self.tmpdir, rpm_filename),
-            )
-            if siginfos is None:
-                raise Exception("No IMA signatures found")
-            CORRECT_KEY_ID = "379efb19"
-            for path in siginfos:
-                siginfo = siginfos[path]
-                if siginfo["error"]:
-                    raise Exception(
-                        "Siginfo parsing for path %s resulted in error: %s"
-                        % (path, siginfo["error"])
-                    )
-                if siginfo["user_readable_key_id"] != CORRECT_KEY_ID:
-                    raise Exception(
-                        "User readable key ID is %s, not %s"
-                        % (siginfo["user_readable_key_id"], CORRECT_KEY_ID)
-                    )
+        # Construct the arguments to verify_rpm
+        args = self._get_verify_rpm_args()
+        args.extend(rpm_paths)
 
-            extracted_dir = os.path.join(
+        args = verify_rpm.get_args().parse_args(args)
+        self.assertTrue(verify_rpm.main(args))
+
+    def _get_verify_rpm_args(self):
+        args = []
+
+        args.extend(
+            [
+                "--tmp-path-dir",
                 self.tmpdir,
-                rpm_filename.rstrip(".rpm"),
-            )
-
-            os.mkdir(extracted_dir)
-
-            # Skip this check in cases where we can't use user.ima xattrs
-            # This is for example the case in Fedora builds, do to tmpfs
-            if os.environ.get("SKIP_IMA_LIVE_CHECK"):
-                return
-
-            rpm_head_signing.extract_rpm_with_filesigs(
-                os.path.join(self.tmpdir, rpm_filename),
-                extracted_dir,
-            )
-
-            with open(os.path.join(self.asset_dir, "imacert.der"), "rb") as f:
-                cert = load_der_x509_certificate(f.read(), backend=default_backend())
-                pubkey = cert.public_key()
-
-            evmctl_help = subprocess.check_output(["evmctl", "--help"])
-
-            for (where, dnames, fnames) in os.walk(extracted_dir):
-                for fname in fnames:
-                    # Always run the manual evmctl check.
-                    alternative_evmctl_check(
-                        os.path.join(where, fname),
-                        pubkey,
-                    )
-
-                    if b"--xattr-user" in evmctl_help:
-                        subprocess.check_call(
-                            [
-                                "evmctl",
-                                "-v",
-                                "--key",
-                                os.path.join(self.asset_dir, "imacert.der"),
-                                "ima_verify",
-                                "--xattr-user",
-                                os.path.join(where, fname),
-                            ],
-                        )
-                    else:
-                        if not os.environ.get("ONLY_ALTERNATIVE_EVMCTL_CHECK"):
-                            raise Exception("Can't test evmctl")
-
-
-def alternative_evmctl_check(file_path, pubkey):
-    # In RHEL7, evmctl is too old, so we won't be able to run the
-    #  evmctl check
-    ima_sig = bytearray(xattr.getxattr(file_path, "user.ima"))
-    ima_sig_info = rpm_head_signing.parse_ima_signature(ima_sig)
-    if ima_sig_info["error"]:
-        raise Exception("Error parsing IMA signature: %s" % ima_sig_info["error"])
-    if ima_sig_info["type"] != 3:
-        raise Exception("IMA signature has wrong prefix (%s)" % ima_sig_info["type"])
-    if ima_sig_info["version"] != 2:
-        raise Exception(
-            "IMA signature has wrong version (%s)" % ima_sig_info["version"]
+                "--cert-path",
+                os.path.join(self.asset_dir, "imacert.der"),
+            ],
         )
-    if sys.version_info.major == 3:
-        # X962 is only supported on Cryptography 2.5+
-        # We are a bit lazy and just check for py3 instead of checking this more carefully
 
-        # Check the Key ID
-        keybytes = pubkey.public_bytes(
-            crypto_serialization.Encoding.X962,
-            crypto_serialization.PublicFormat.UncompressedPoint,
-        )
-        # Security explanation: SHA1 is the defined function to use for this.
-        # It's bad, but it's what we are supposed to use.
-        keybytes_digester = Hash(
-            SHA1(),  # nosec
-            backend=default_backend(),
-        )
-        keybytes_digester.update(keybytes)
-        keybytes_digest = keybytes_digester.finalize()
-        correct_keyid = keybytes_digest[-4:]
-        if correct_keyid != ima_sig_info["key_id"]:
-            raise Exception(
-                "IMA signature has invalid key ID: %s != %s"
-                % (correct_keyid, ima_sig_info["key_id"])
-            )
-    # Check the signature itself
-    hasher = Hash(
-        ima_sig_info["hashing_algorithm"],
-        backend=default_backend(),
-    )
-    with open(file_path, "rb") as f:
-        hasher.update(f.read())
-        file_digest = hasher.finalize()
-    pubkey.verify(
-        ima_sig_info["signature"],
-        bytes(file_digest),
-        ima_sig_info["algorithm"],
-    )
+        if sys.version_info.major != 3:
+            # X962 is only supported on Cryptography 2.5+
+            # We are a bit lazy and just check for py3 instead of checking
+            # this more carefully
+            args.append("--skip-keyid-check")
+
+        if os.environ.get("SKIP_IMA_LIVE_CHECK"):
+            args.append("--lite-verify")
+
+        evmctl_help = subprocess.check_output(["evmctl", "--help"])
+        if b"--xattr-user" not in evmctl_help:
+            if not os.environ.get("ONLY_ALTERNATIVE_EVMCTL_CHECK"):
+                raise Exception("Can't test evmctl")
+            args.append("--skip-evmctl")
+
+        return args
 
 
 if __name__ == "__main__":
