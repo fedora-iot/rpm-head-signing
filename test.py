@@ -98,10 +98,7 @@ class TestRpmHeadSigning(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.tmpdir, "digests.out.tmp")))
 
     def test_insert_no_ima(self):
-        copy(
-            os.path.join(self.asset_dir, "gpgkey.asc"),
-            os.path.join(self.tmpdir, "gpgkey.key"),
-        )
+        self._add_gpg_key("gpgkey.asc")
         for pkg in self.pkg_numbers:
             copy(
                 os.path.join(self.asset_dir, "testpkg-%s.rpm" % pkg),
@@ -110,10 +107,8 @@ class TestRpmHeadSigning(unittest.TestCase):
             res = subprocess.check_output(
                 [
                     "rpm",
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
+                    "--dbpath",
+                    self.tmpdir,
                     "-Kv",
                     os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
@@ -127,11 +122,9 @@ class TestRpmHeadSigning(unittest.TestCase):
             res = subprocess.check_output(
                 [
                     "rpm",
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "-Kvvvvvvvv",
+                    "--dbpath",
+                    self.tmpdir,
+                    "-Kv",
                     os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
             )
@@ -244,17 +237,23 @@ class TestRpmHeadSigning(unittest.TestCase):
         if "insertlib.c" in log:
             raise Exception("insertlib.c found in the Valgrind log")
 
+    def _add_gpg_key(self, key_file_name):
+        subprocess.check_call(
+            [
+                "rpm",
+                "--dbpath",
+                self.tmpdir,
+                "--import",
+                os.path.join(self.asset_dir, key_file_name),
+            ]
+        )
+
     def _ima_insertion_test(self, insert_command, rpm_keyid, nonhdrsigned=False):
         if nonhdrsigned:
-            copy(
-                os.path.join(self.asset_dir, "puiterwijk.gpgkey.asc"),
-                os.path.join(self.tmpdir, "gpgkey.key"),
-            )
+            self._add_gpg_key("puiterwijk.gpgkey.asc")
         else:
-            copy(
-                os.path.join(self.asset_dir, "gpgkey.asc"),
-                os.path.join(self.tmpdir, "gpgkey.key"),
-            )
+            self._add_gpg_key("gpgkey.asc")
+
         for pkg in self.pkg_numbers:
             if nonhdrsigned:
                 rpm_filename = "testpkg-%s.signed.rpm" % pkg
@@ -267,10 +266,8 @@ class TestRpmHeadSigning(unittest.TestCase):
             res = subprocess.check_output(
                 [
                     "rpm",
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
+                    "--dbpath",
+                    self.tmpdir,
                     "-Kv",
                     os.path.join(self.tmpdir, rpm_filename),
                 ],
@@ -283,11 +280,9 @@ class TestRpmHeadSigning(unittest.TestCase):
             res = subprocess.check_output(
                 [
                     "rpm",
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "--define",
-                    "%%_keyringpath %s" % self.tmpdir,
-                    "-Kvvvv",
+                    "--dbpath",
+                    self.tmpdir,
+                    "-Kv",
                     os.path.join(self.tmpdir, rpm_filename),
                 ],
             )
