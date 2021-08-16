@@ -15,7 +15,7 @@
 %global srcname rpm_head_signing
 
 Name:           python-rpm-head-signing
-Version:        1.2
+Version:        1.3
 Release:        1%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
@@ -150,6 +150,11 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 
 
 %changelog
+* Mon Aug 16 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.3-1
+- Feature: fix byte order on insert_signatures
+- Fix: Compile on F32
+- Fix: Beta RPM version parsing
+
 * Thu Aug 05 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.2-1
 - Generate zero digest
 
