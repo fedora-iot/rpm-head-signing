@@ -139,6 +139,7 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 %license LICENSE
 %{python2_sitearch}/%{srcname}/
 %{python2_sitearch}/%{srcname}-%{version}-py%{python2_version}.egg-info/
+%{_bindir}/verify-rpm-ima-signatures
 %endif
 
 %if %{with python3}
@@ -146,6 +147,7 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 %license LICENSE
 %{python3_sitearch}/%{srcname}/
 %{python3_sitearch}/%{srcname}-%{version}-py%{python3_version}.egg-info/
+%{_bindir}/verify-rpm-ima-signatures
 %endif
 
 

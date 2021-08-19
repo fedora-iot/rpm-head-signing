@@ -38,4 +38,9 @@ setup(
         "rpm",
         "pyxattr",
     ],
+    entry_points={
+        "console_scripts": [
+            "verify-rpm-ima-signatures=rpm_head_signing.verify_rpm:__main__",
+        ],
+    },
 )
