@@ -191,7 +191,7 @@ def manual_sigcheck(file_path, correct_keyid, pubkey):
     )
 
 
-if __name__ == "__main__":
+def __main__():
     args = get_args().parse_args()
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -199,3 +199,7 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO)
     if not main(args):
         raise Exception("At least one exception was thrown during validation")
+
+
+if __name__ == "__main__":
+    __main__()

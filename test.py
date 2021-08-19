@@ -7,7 +7,7 @@ import sys
 import unittest
 
 import rpm_head_signing
-import verify_rpm
+import rpm_head_signing.verify_rpm
 
 
 class TestRpmHeadSigning(unittest.TestCase):
@@ -179,8 +179,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         args = self._get_verify_rpm_args()
         args.extend([os.path.join(self.asset_dir, "testpkg-1.rpm")])
 
-        args = verify_rpm.get_args().parse_args(args)
-        self.assertFalse(verify_rpm.main(args))
+        args = rpm_head_signing.verify_rpm.get_args().parse_args(args)
+        self.assertFalse(rpm_head_signing.verify_rpm.main(args))
 
     def test_insert_ima_valgrind_normal(self):
         self._test_insert_ima_valgrind("normal", "15f712be")
@@ -305,8 +305,8 @@ class TestRpmHeadSigning(unittest.TestCase):
         args = self._get_verify_rpm_args()
         args.extend(rpm_paths)
 
-        args = verify_rpm.get_args().parse_args(args)
-        self.assertTrue(verify_rpm.main(args))
+        args = rpm_head_signing.verify_rpm.get_args().parse_args(args)
+        self.assertTrue(rpm_head_signing.verify_rpm.main(args))
 
     def _get_verify_rpm_args(self):
         args = []
