@@ -1,0 +1,4 @@
+requests
+koji
+rpm
+pyxattr

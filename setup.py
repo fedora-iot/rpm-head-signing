@@ -28,16 +28,10 @@ insertlib = Extension(
 
 setup(
     name="rpm_head_signing",
-    version="1.4",
+    version="1.4.1",
     packages=["rpm_head_signing"],
     ext_package="rpm_head_signing",
     ext_modules=[insertlib],
-    install_requires=[
-        "requests",
-        "koji",
-        "rpm",
-        "pyxattr",
-    ],
     entry_points={
         "console_scripts": [
             "verify-rpm-ima-signatures=rpm_head_signing.verify_rpm:__main__",

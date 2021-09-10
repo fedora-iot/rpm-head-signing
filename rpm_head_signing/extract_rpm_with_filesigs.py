@@ -123,7 +123,7 @@ def _extract_filesigs(rpm_path):
 def _install_filesigs(signatures, output_path):
     for path in signatures:
         full_path = os.path.join(output_path, path.lstrip("/"))
-        xattr.setxattr(full_path, "user.ima", signatures[path])
+        xattr.setxattr(full_path, "user.ima", bytes(signatures[path]))
 
 
 def extract_rpm_with_filesigs(rpm_path, output_path):
