@@ -15,7 +15,7 @@
 %global srcname rpm_head_signing
 
 Name:           python-rpm-head-signing
-Version:        1.4.1
+Version:        1.4.2
 Release:        1%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
@@ -152,6 +152,9 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 
 
 %changelog
+* Tue Sep 14 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.4.2-1
+- Ignore symbolic links when verifying RPMs
+
 * Fri Sep 10 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.4.1-1
 - Ensure xattrs are passed in as bytes
 
