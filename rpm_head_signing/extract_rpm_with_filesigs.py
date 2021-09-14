@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from tempfile import TemporaryFile
+import logging
 import subprocess
 import os.path
 import sys
@@ -123,7 +124,11 @@ def _extract_filesigs(rpm_path):
 def _install_filesigs(signatures, output_path):
     for path in signatures:
         full_path = os.path.join(output_path, path.lstrip("/"))
-        xattr.setxattr(full_path, "user.ima", bytes(signatures[path]))
+        if os.path.islink(full_path):
+            logging.debug("Skipping symbolic link at %s", path)
+        else:
+            logging.debug("Installing signature for %s", path)
+            xattr.setxattr(full_path, "user.ima", bytes(signatures[path]))
 
 
 def extract_rpm_with_filesigs(rpm_path, output_path):

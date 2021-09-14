@@ -119,6 +119,9 @@ def main(args):
             for (where, _, fnames) in os.walk(extracted_dir):
                 for fname in fnames:
                     file_path = os.path.join(where, fname)
+                    if os.path.islink(file_path):
+                        logging.debug("Skipping symbolic link at %s", file_path)
+                        continue
                     logging.debug("Verifying file %s ...", file_path)
 
                     if not args.skip_evmctl:
