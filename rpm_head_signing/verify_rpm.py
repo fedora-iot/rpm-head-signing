@@ -149,8 +149,10 @@ def main(args):
 
                     logging.debug("File verified")
 
+            logging.info("Verified signatures on RPM %s", rpm_path)
+
         except Exception:
-            logging.warning("Error during verification", exc_info=True)
+            logging.warning("Error during verification of %s", rpm_path, exc_info=True)
             had_error = True
 
     if not args.keep_tmp_dir:
@@ -200,7 +202,9 @@ def __main__():
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    if not main(args):
+    if main(args):
+        logging.info("All packages were successfully validated")
+    else:
         raise Exception("At least one exception was thrown during validation")
 
 
