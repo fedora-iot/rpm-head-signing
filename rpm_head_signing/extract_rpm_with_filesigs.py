@@ -90,6 +90,7 @@ def _extract_filesigs(rpm_path):
         return None
 
     rpm_hdr = get_rpm_header(rpm_path)
+    fileflags = rpm_hdr[rpm.RPMTAG_FILEFLAGS]
     diridxs = rpm_hdr[rpm.RPMTAG_DIRINDEXES]
     dirnames = rpm_hdr[rpm.RPMTAG_DIRNAMES]
     basenames = rpm_hdr[rpm.RPMTAG_BASENAMES]
@@ -116,6 +117,9 @@ def _extract_filesigs(rpm_path):
         path = os.path.join(dirname, basename)
         if not isinstance(path, str):
             path = path.decode("utf8")
+        if fileflags[i] & rpm.RPMFILE_GHOST:
+            logging.debug("Skipping ghost file at %s", path)
+            continue
         signatures[path] = filesig
 
     return signatures
