@@ -55,11 +55,15 @@ RPMSIGTAG_PGP = 259
 RPMSIGTAG_RSAHEADER = 268
 
 
+class NonImaSignedPackage(ValueError):
+    pass
+
+
 # Koji doesn't support type 8 (string array) for returning
 def _get_header_type_8(raw_hdr, tag):
     entry = raw_hdr.index.get(RPMSIGTAG_FILESIGNATURES)
     if entry is None:
-        raise Exception("No file signatures found")
+        raise NonImaSignedPackage("No file signatures found")
     (dtype, offset, count) = entry[1:]
     # This is basically RawHeader._getitem, but then for only type 8
     il = len(raw_hdr.index)
@@ -84,16 +88,21 @@ def _get_header_type_8(raw_hdr, tag):
 def _extract_filesigs(rpm_path):
     sighdr = rip_rpm_sighdr(rpm_path)
     sighdr = RawHeader(sighdr)
-    filesigs = _get_header_type_8(sighdr, RPMSIGTAG_FILESIGNATURES)
-
-    if not filesigs:
-        return None
 
     rpm_hdr = get_rpm_header(rpm_path)
     fileflags = rpm_hdr[rpm.RPMTAG_FILEFLAGS]
     diridxs = rpm_hdr[rpm.RPMTAG_DIRINDEXES]
     dirnames = rpm_hdr[rpm.RPMTAG_DIRNAMES]
     basenames = rpm_hdr[rpm.RPMTAG_BASENAMES]
+
+    if len(basenames) == 0:
+        logging.debug("Empty RPM encountered")
+        return {}
+
+    filesigs = _get_header_type_8(sighdr, RPMSIGTAG_FILESIGNATURES)
+
+    if not filesigs:
+        return None
 
     if len(basenames) != len(filesigs):
         raise Exception(
