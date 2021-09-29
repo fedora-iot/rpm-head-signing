@@ -7,7 +7,10 @@ from koji import (
 )
 
 from .extract_header import RPMTAG_PAYLOADDIGEST
-from .extract_rpm_with_filesigs import RPMSIGTAG_FILESIGNATURES
+from .extract_rpm_with_filesigs import (
+    RPMSIGTAG_FILESIGNATURES,
+    _get_header_type_8,
+)
 
 
 class DetermineResult(object):
@@ -43,6 +46,20 @@ def determine_rpm_status(rpm_path):
     )
 
     filesignatures = sighdr.index.get(RPMSIGTAG_FILESIGNATURES)
+    if filesignatures is None and len(fields["basenames"]) == 0:
+        filesignatures = True
+    elif filesignatures:
+        filesigs = _get_header_type_8(sighdr, RPMSIGTAG_FILESIGNATURES)
+        if len(filesigs) != len(fields["basenames"]):
+            raise ValueError(
+                "Invalid RPM encountered: number of IMA signatures doesn't match number of files: %s != %s (%s, %s)"
+                % (
+                    len(filesigs),
+                    len(fields["basenames"]),
+                    filesigs,
+                    fields["basenames"],
+                )
+            )
     payloaddigest = hdr.index.get(RPMTAG_PAYLOADDIGEST)
 
     result = DetermineResult()
