@@ -92,6 +92,16 @@ class TestRpmHeadSigning(unittest.TestCase):
             )
         self.assertFalse(os.path.exists(os.path.join(self.tmpdir, "digests.out.tmp")))
 
+        result = rpm_head_signing.determine_rpm_status(
+            os.path.join(
+                self.asset_dir, "sblim-cim-client-javadoc-1.3.9.1-1.el6.noarch.rpm"
+            )
+        )
+        self.assertFalse(result.is_head_only_signable)
+        self.assertFalse(result.is_head_only_signed)
+        self.assertTrue(result.is_signed)
+        self.assertFalse(result.is_ima_signed)
+
     def test_insert_no_ima(self):
         self._add_gpg_key("gpgkey.asc")
         for pkg in self.pkg_numbers:
@@ -126,6 +136,14 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b"SHA1 digest: OK" in res)
             self.assertTrue(b"Header V3 RSA" in res)
             self.assertTrue(b"15f712be: ok" in res.lower())
+
+            result = rpm_head_signing.determine_rpm_status(
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
+            )
+            self.assertTrue(result.is_head_only_signable)
+            self.assertTrue(result.is_head_only_signed)
+            self.assertTrue(result.is_signed)
+            self.assertFalse(result.is_ima_signed)
 
     def test_insert_ima_presigned(self):
         def insert_cb(pkg):
@@ -300,6 +318,14 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(b"SHA1 digest: OK" in res)
             msg = ("%s: ok" % rpm_keyid).encode("utf8")
             self.assertTrue(msg in res.lower())
+
+            result = rpm_head_signing.determine_rpm_status(
+                os.path.join(self.tmpdir, rpm_filename)
+            )
+            self.assertTrue(result.is_head_only_signable)
+            self.assertTrue(result.is_head_only_signed)
+            self.assertTrue(result.is_signed)
+            self.assertTrue(result.is_ima_signed)
 
         # Construct the arguments to verify_rpm
         args = self._get_verify_rpm_args()
