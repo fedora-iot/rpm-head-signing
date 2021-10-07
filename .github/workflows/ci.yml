@@ -45,7 +45,7 @@ jobs:
         run: |
           # We allow insertlib to be found in the valgrind output because the RPM version on Ubuntu is doing
           # weird things.
-          ONLY_ALTERNATIVE_EVMCTL_CHECK=true PRINT_VALGRIND_LOG=1 VALGRIND_ALLOW_INSERTLIB=true python3 test.py
+          ONLY_ALTERNATIVE_EVMCTL_CHECK=true PRINT_VALGRIND_LOG=1 VALGRIND_ALLOW_INSERTLIB=true python3 test.py | true
 
   tests_fedora:
     runs-on: ubuntu-latest
