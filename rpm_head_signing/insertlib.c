@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <string.h>
 
+#include <asm/byteorder.h>
+
 #include <rpm/rpmtypes.h>
 #include <rpm/rpmlib.h>
 #include <rpm/rpmstring.h>
@@ -27,7 +29,7 @@ int rpmWriteSignature(FD_t fd, Header sigh);
 
     #define RPMTAG_PAYLOADDIGESTALT 5097
     #define RPMSIGTAG_FILESIGNATURES RPMTAG_SIG_BASE + 18
-    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE 19
+    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE + 19
 
     rpmRC rpmLeadRead(FD_t fd, int *type, char **emsg);
     rpmRC rpmLeadWrite(FD_t fd, Header h);
@@ -35,14 +37,12 @@ int rpmWriteSignature(FD_t fd, Header sigh);
 
 #elif defined(RPM_411)
 
-    #define RPMTAG_FILESIGNATURES 5090
-    #define RPMTAG_FILESIGNATURELENGTH 5091
     #define RPMTAG_PAYLOADDIGEST 5092
     #define RPMSIGTAG_RESERVEDSPACE 1008
 
     #define RPMTAG_PAYLOADDIGESTALT 5097
     #define RPMSIGTAG_FILESIGNATURES RPMTAG_SIG_BASE + 18
-    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE 19
+    #define RPMSIGTAG_FILESIGNATURELENGTH RPMTAG_SIG_BASE + 19
 
     struct rpmlead_s {
         unsigned char magic[4];
@@ -71,6 +71,21 @@ int rpmWriteSignature(FD_t fd, Header sigh);
 #else
     #error "Please provide RPM version macro"
 #endif
+
+// Selected things from imaevm.h
+#define __packed __attribute__((packed))
+#define MAX_SIGNATURE_SIZE 1024
+struct signature_v2_hdr {
+    uint8_t version;   /* signature format version */
+    uint8_t hash_algo; /* Digest algorithm [enum pkey_hash_algo] */
+    uint32_t keyid;    /* IMA key identifier - not X509/PGP specific*/
+    uint16_t sig_size; /* signature size */
+    uint8_t sig[0];    /* signature payload */
+} __packed;
+enum digsig_version {
+    DIGSIG_VERSION_1 = 1,
+    DIGSIG_VERSION_2
+};
 
 static void unloadImmutableRegion(Header *hdrp, rpmTagVal tag)
 {
@@ -161,8 +176,8 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
         goto out;
     }
 
-    headerDel(sigh, RPMTAG_FILESIGNATURELENGTH);
-    headerDel(sigh, RPMTAG_FILESIGNATURES);
+    headerDel(sigh, RPMSIGTAG_FILESIGNATURELENGTH);
+    headerDel(sigh, RPMSIGTAG_FILESIGNATURES);
 
     rpmtdReset(&td);
     td.tag = RPMSIGTAG_FILESIGNATURES;
@@ -194,6 +209,13 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
         }
     }
 
+    rpmtdReset(&td);
+    td.tag = RPMSIGTAG_FILESIGNATURELENGTH;
+    td.type = RPM_INT32_TYPE;
+    td.data = &siglen;
+    td.count = 1;
+    headerPut(sigh, &td, HEADERPUT_DEFAULT);
+
     rc = RPMRC_OK;
 
 out:
@@ -203,6 +225,123 @@ out:
     } else {
         return false;
     }
+}
+
+static bool read_rpm(FD_t rpm_fd, off_t *sigStart, Header *sigh, off_t *headerStart, Header *h)
+{
+    char *msg;
+
+#if defined(RPM_415)
+    if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
+#elif defined(RPM_411)
+    if (rpmLeadRead(rpm_fd, NULL, NULL, &msg) != RPMRC_OK) {
+#else
+    if (rpmLeadRead(rpm_fd, NULL, &msg) != RPMRC_OK) {
+#endif
+        PyErr_Format(PyExc_Exception, "Error leading read: %s", (msg && *msg ? msg : "Unknown error"));
+        free(msg);
+        return false;
+    }
+
+    *sigStart = Ftell(rpm_fd);
+#ifdef RPM_411
+    if (rpmReadSignature(rpm_fd, sigh, RPMSIGTYPE_HEADERSIG, &msg) != RPMRC_OK) {
+#else
+    if (rpmReadSignature(rpm_fd, sigh, &msg) != RPMRC_OK) {
+#endif
+        PyErr_Format(PyExc_Exception, "rpmReadSignature failed: %s", (msg && *msg ? msg : "Unknown error"));
+        free(msg);
+        return false;
+    }
+
+    *headerStart = Ftell(rpm_fd);
+    if (rpmReadHeader(NULL, rpm_fd, h, &msg) != RPMRC_OK) {
+        PyErr_Format(PyExc_Exception, "rpmReadHeader failed: %s", (msg && *msg ? msg : "Unknown error"));
+        free(msg);
+        return false;
+    }
+
+    if (!headerIsEntry(*h, RPMTAG_HEADERIMMUTABLE)) {
+        PyErr_SetString(PyExc_Exception, "RPM v3 package encountered");
+        return false;
+    }
+    if (!(headerIsEntry(*h, RPMTAG_PAYLOADDIGEST) ||
+            headerIsEntry(*h, RPMTAG_PAYLOADDIGESTALT))) {
+        PyErr_SetString(PyExc_Exception, "RPM package without payload digest found");
+        free(msg);
+        return false;
+    }
+
+    free(msg);
+    return true;
+}
+
+static bool write_new_rpm(const char *rpm_path, FD_t rpm_fd, Header *sigh, off_t headerStart, Header *h)
+{
+    bool success = false;
+    char *trpm = NULL;
+    FD_t rpm_ofd = NULL;
+#ifdef RPM_411
+    rpmlead lead = NULL;
+#endif
+
+    rasprintf(&trpm, "%s.XXXXXX", rpm_path);
+    rpm_ofd = rpmMkTemp(trpm);
+    if (rpm_fd == NULL || Ferror(rpm_ofd)) {
+        PyErr_Format(PyExc_Exception, "Error opening RPM output file: %s", Fstrerror(rpm_ofd));
+        goto out;
+    }
+
+#ifdef RPM_411
+    lead = rpmLeadFromHeader(*h);
+    if (rpmLeadWrite(rpm_ofd, lead)) {
+#else
+    if (rpmLeadWrite(rpm_ofd, *h)) {
+#endif
+        PyErr_Format(PyExc_Exception, "Error writing lead: %s", Fstrerror(rpm_ofd));
+        goto out;
+    }
+    if (rpmWriteSignature(rpm_ofd, *sigh)) {
+        PyErr_Format(PyExc_Exception, "Error writing signature header: %s", Fstrerror(rpm_ofd));
+        goto out;
+    }
+    if (Fseek(rpm_fd, headerStart, SEEK_SET) < 0) {
+        PyErr_Format(PyExc_Exception, "Error seeking RPM source: %s", Fstrerror(rpm_fd));
+        goto out;
+    }
+    if (!copyFile(&rpm_fd, &rpm_ofd)) {
+        // This function sets Python exceptions itself
+        goto out;
+    }
+
+    struct stat st;
+    if (stat(rpm_path, &st)) {
+        PyErr_Format(PyExc_Exception, "Error getting stat on RPM path: %s", strerror(errno));
+        goto out;
+    }
+    if (unlink(rpm_path)) {
+        PyErr_Format(PyExc_Exception, "Error removing old RPM: %s", strerror(errno));
+        goto out;
+    }
+    if (rename(trpm, rpm_path)) {
+        PyErr_Format(PyExc_Exception, "Error moving new RPM into place: %s", strerror(errno));
+        goto out;
+    }
+    if (chmod(rpm_path, st.st_mode)) {
+        PyErr_Format(PyExc_Exception, "Error setting permissions on new file: %s", strerror(errno));
+        goto out;
+    }
+
+    success = true;
+out:
+    if (rpm_ofd) Fclose(rpm_ofd);
+
+#ifdef RPM_411
+    if (lead != NULL) rpmLeadFree(lead);
+#endif
+    free(trpm);
+
+    return success;
 }
 
 static PyObject *
@@ -218,17 +357,14 @@ insert_signatures(PyObject *self, PyObject *args)
     PyObject *sig_hdr = NULL;
     PyObject *sig_hdr_pad = NULL;
     PyObject *sig_hdr_padded = NULL;
-    char *trpm = NULL;
     char *msg = NULL;
     FD_t rpm_fd = NULL;
-    FD_t rpm_ofd = NULL;
+    off_t sigStart = 0;
     Header sigh = NULL;
+    off_t headerStart = 0;
     Header h = NULL;
     pgpDigParams sigp = NULL;
     rpmtd sigtd = NULL;
-#ifdef RPM_411
-    rpmlead lead = NULL;
-#endif
 
     if (!PyArg_ParseTuple(args, "isO|O:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup))
         return NULL;
@@ -259,40 +395,7 @@ insert_signatures(PyObject *self, PyObject *args)
         goto out;
     }
 
-#if defined(RPM_415)
-    if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
-#elif defined(RPM_411)
-    if (rpmLeadRead(rpm_fd, NULL, NULL, &msg) != RPMRC_OK) {
-#else
-    if (rpmLeadRead(rpm_fd, NULL, &msg) != RPMRC_OK) {
-#endif
-        PyErr_Format(PyExc_Exception, "Error leading read: %s", (msg && *msg ? msg : "Unknown error"));
-        goto out;
-    }
-
-    off_t sigStart = Ftell(rpm_fd);
-#ifdef RPM_411
-    if (rpmReadSignature(rpm_fd, &sigh, RPMSIGTYPE_HEADERSIG, &msg) != RPMRC_OK) {
-#else
-    if (rpmReadSignature(rpm_fd, &sigh, &msg) != RPMRC_OK) {
-#endif
-        PyErr_Format(PyExc_Exception, "rpmReadSignature failed: %s", (msg && *msg ? msg : "Unknown error"));
-        goto out;
-    }
-
-    off_t headerStart = Ftell(rpm_fd);
-    if (rpmReadHeader(NULL, rpm_fd, &h, &msg) != RPMRC_OK) {
-        PyErr_Format(PyExc_Exception, "rpmReadHeader failed: %s", (msg && *msg ? msg : "Unknown error"));
-        goto out;
-    }
-
-    if (!headerIsEntry(h, RPMTAG_HEADERIMMUTABLE)) {
-        PyErr_SetString(PyExc_Exception, "RPM v3 package encountered");
-        goto out;
-    }
-    if (!(headerIsEntry(h, RPMTAG_PAYLOADDIGEST) ||
-            headerIsEntry(h, RPMTAG_PAYLOADDIGESTALT))) {
-        PyErr_SetString(PyExc_Exception, "RPM package without payload digest found");
+    if (!read_rpm(rpm_fd, &sigStart, &sigh, &headerStart, &h)) {
         goto out;
     }
 
@@ -439,50 +542,8 @@ insert_signatures(PyObject *self, PyObject *args)
 
     } else {
         // Create new RPM
-        rasprintf(&trpm, "%s.XXXXXX", rpm_path);
-        rpm_ofd = rpmMkTemp(trpm);
-        if (rpm_fd == NULL || Ferror(rpm_ofd)) {
-            PyErr_Format(PyExc_Exception, "Error opening RPM output file: %s", Fstrerror(rpm_ofd));
-            goto out;
-        }
-
-#ifdef RPM_411
-        lead = rpmLeadFromHeader(h);
-        if (rpmLeadWrite(rpm_ofd, lead)) {
-#else
-        if (rpmLeadWrite(rpm_ofd, h)) {
-#endif
-            PyErr_Format(PyExc_Exception, "Error writing lead: %s", Fstrerror(rpm_ofd));
-            goto out;
-        }
-        if (rpmWriteSignature(rpm_ofd, sigh)) {
-            PyErr_Format(PyExc_Exception, "Error writing signature header: %s", Fstrerror(rpm_ofd));
-            goto out;
-        }
-        if (Fseek(rpm_fd, headerStart, SEEK_SET) < 0) {
-            PyErr_Format(PyExc_Exception, "Error seeking RPM source: %s", Fstrerror(rpm_fd));
-            goto out;
-        }
-        if (!copyFile(&rpm_fd, &rpm_ofd)) {
-            // This function sets Python exceptions itself
-            goto out;
-        }
-
-        struct stat st;
-        if (stat(rpm_path, &st)) {
-            PyErr_Format(PyExc_Exception, "Error getting stat on RPM path: %s", strerror(errno));
-            goto out;
-        }
-        if (unlink(rpm_path)) {
-            PyErr_Format(PyExc_Exception, "Error removing old RPM: %s", strerror(errno));
-            goto out;
-        }
-        if (rename(trpm, rpm_path)) {
-            PyErr_Format(PyExc_Exception, "Error moving new RPM into place: %s", strerror(errno));
-            goto out;
-        }
-        if (chmod(rpm_path, st.st_mode)) {
-            PyErr_Format(PyExc_Exception, "Error setting permissions on new file: %s", strerror(errno));
+        if (!write_new_rpm(rpm_path, rpm_fd, &sigh, headerStart, &h)) {
+            // This function sets its own exceptions
             goto out;
         }
     }
@@ -492,11 +553,6 @@ insert_signatures(PyObject *self, PyObject *args)
 out:
     if (sigp != NULL) pgpDigParamsFree(sigp);
     if (rpm_fd) Fclose(rpm_fd);
-    if (rpm_ofd) Fclose(rpm_ofd);
-
-#ifdef RPM_411
-    rpmLeadFree(lead);
-#endif
 
     Py_CLEAR(sig_hdr_magic);
     Py_CLEAR(sig_hdr);
@@ -504,7 +560,6 @@ out:
     Py_CLEAR(sig_hdr_padded);
     headerFree(sigh);
     headerFree(h);
-    free(trpm);
     free(msg);
 #ifdef RPM_411
     if (sigtd != NULL && sigtd->data != NULL) free(sigtd->data);
@@ -522,8 +577,203 @@ out:
     }
 }
 
+#define CHANGED_NONE 0
+#define CHANGED_IMA_SIG_BYTEORDER (1 << 0)
+#define CHANGED_IMA_SIG_LENGTH (1 << 1)
+
+#define BYTE_ORDER_CORRECT 0
+#define BYTE_ORDER_SWAPPED 1
+
+static bool
+determine_ima_signature_length_and_byteorder(Header *h, Header *sigh, int *is_empty, int *byteorder, int *siglen)
+{
+    bool success = false;
+    struct rpmtd_s td;
+    rpmfi fi = rpmfiNew(NULL, *h, RPMSIGTAG_FILESIGNATURES, RPMFI_FLAGS_INSTALL);
+    uint8_t *sigdata = NULL;
+
+    if (rpmfiFC(fi) == 0) {
+        *is_empty = true;
+        goto out;
+    }
+    *is_empty = false;
+
+    if (!headerIsEntry(*sigh, RPMSIGTAG_FILESIGNATURES)) {
+        PyErr_Format(PyExc_Exception, "No IMA signatures in header");
+        goto out;
+    }
+
+    // We can't actually use the "fi" to determine the signature info, since that
+    // already uses the (lacking) length header from the RPM file that we're supposed
+    // to fix.  So we'll just use the header directly.
+    if (!headerGet(*sigh, RPMSIGTAG_FILESIGNATURES, &td, HEADERGET_MINMEM)) {
+        PyErr_Format(PyExc_Exception, "Error getting filesig header");
+        goto out;
+    }
+    const char *s;
+    s = rpmtdNextString(&td);
+    if (s == NULL) {
+        PyErr_SetString(PyExc_Exception, "No file signature string returned");
+        goto out;
+    }
+    *siglen = strlen(s);
+    if (*siglen == 0) {
+        PyErr_SetString(PyExc_Exception, "Empty file signature string returned");
+        goto out;
+    }
+    if (*siglen > MAX_SIGNATURE_SIZE) {
+        PyErr_Format(PyExc_Exception, "File signature string too long: %d", *siglen);
+        goto out;
+    }
+
+    // Decode the signature header to determine the byte order
+    uint8_t *t = sigdata = malloc(*siglen / 2);
+    if (sigdata == NULL) {
+        PyErr_SetString(PyExc_Exception, "Error allocating memory for signature data");
+        goto out;
+    }
+    int j = 0;
+    for (j = 0; j < (*siglen / 2); j++, t++, s += 2)
+        *t = (rnibble(s[0]) << 4) | rnibble(s[1]);
+
+    struct signature_v2_hdr *sighdr = (struct signature_v2_hdr *)(sigdata + 1);
+    if (sighdr->version != DIGSIG_VERSION_2) {
+        PyErr_Format(PyExc_Exception, "Unknown signature version: %d", sighdr->version);
+        goto out;
+    }
+    // This is the length of the signature itself, not the header, in host byte order
+    uint16_t correct_length = (*siglen / 2) - 9;
+    if (sighdr->sig_size == __cpu_to_be16(correct_length)) {
+        *byteorder = BYTE_ORDER_CORRECT;
+    } else if (sighdr->sig_size == __cpu_to_le16(correct_length)) {
+        *byteorder = BYTE_ORDER_SWAPPED;
+    } else {
+        PyErr_Format(PyExc_Exception, "Signature length mismatch: %d != %d (or %d)", correct_length, __cpu_to_be16(sighdr->sig_size), __cpu_to_le16(sighdr->sig_size));
+        goto out;
+    }
+
+    success = true;
+
+out:
+    rpmfiFree(fi);
+    rpmtdFreeData(&td);
+    free(sigdata);
+
+    return success;
+}
+
+static bool
+insert_ima_siglen(Header *sigh, int *siglen)
+{
+    struct rpmtd_s td;
+
+    rpmtdReset(&td);
+    td.tag = RPMSIGTAG_FILESIGNATURELENGTH;
+    td.type = RPM_INT32_TYPE;
+    td.data = siglen;
+    td.count = 1;
+
+    headerPut(*sigh, &td, HEADERPUT_DEFAULT);
+
+    return true;
+}
+
+static bool
+fix_ima_signature_byteorder(Header *sigh)
+{
+    PyErr_SetString(PyExc_Exception, "Fixing byte order is not yet implemented");
+    return false;
+
+    // TODO
+}
+
+static PyObject *
+fix_ima_signatures(PyObject *self, PyObject *args)
+{
+    const char *rpm_path;
+    int dry_run;
+    int to_perform;
+    unsigned long changed = CHANGED_NONE;
+    bool success = false;
+    FD_t rpm_fd = NULL;
+    off_t sigStart = 0;
+    Header sigh = NULL;
+    off_t headerStart = 0;
+    Header h = NULL;
+    int is_empty = 0;
+    int siglen = 0;
+    int byteorder = 0;
+
+    if (!PyArg_ParseTuple(args, "sii:fix_ima_signatures", &rpm_path, &dry_run, &to_perform))
+        return NULL;
+
+    rpm_fd = Fopen(rpm_path, "r+.ufdio");
+    if (rpm_fd == NULL || Ferror(rpm_fd)) {
+        PyErr_Format(PyExc_Exception, "Error opening RPM file: %s", Fstrerror(rpm_fd));
+        goto out;
+    }
+
+    if (!read_rpm(rpm_fd, &sigStart, &sigh, &headerStart, &h)) {
+        goto out;
+    }
+
+    if (!determine_ima_signature_length_and_byteorder(&h, &sigh, &is_empty, &byteorder, &siglen)) {
+        // This function sets its own exceptions
+        goto out;
+    }
+
+    if (is_empty) {
+        // No signatures to fix
+        success = true;
+        goto out;
+    }
+
+    if ((!headerIsEntry(sigh, RPMSIGTAG_FILESIGNATURELENGTH)) && (to_perform & CHANGED_IMA_SIG_LENGTH)) {
+        changed |= CHANGED_IMA_SIG_LENGTH;
+        if (!insert_ima_siglen(&sigh, &siglen)) {
+            // This function sets its own exceptions
+            goto out;
+        }
+    }
+
+    if ((byteorder == BYTE_ORDER_SWAPPED) && (to_perform & CHANGED_IMA_SIG_BYTEORDER)) {
+        changed |= CHANGED_IMA_SIG_BYTEORDER;
+        if (!fix_ima_signature_byteorder(&sigh)) {
+            // This function sets its own exceptions
+            goto out;
+        }
+    }
+
+    if (!dry_run && changed) {
+        if (!write_new_rpm(rpm_path, rpm_fd, &sigh, headerStart, &h)) {
+            // This function sets its own exceptions
+            goto out;
+        }
+    }
+
+    success = true;
+
+out:
+    if (rpm_fd) Fclose(rpm_fd);
+
+    headerFree(sigh);
+    headerFree(h);
+
+    if (success) {
+        PyObject *changed_obj = PyLong_FromUnsignedLong(changed);
+        if (changed_obj == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error building changed value");
+            return NULL;
+        }
+        return changed_obj;
+    } else {
+        return NULL;
+    }
+}
+
 static PyMethodDef InsertLibMethods[] = {
     {"insert_signatures", insert_signatures, METH_VARARGS, "Insert signatures into an RPM"},
+    {"fix_ima_signatures", fix_ima_signatures, METH_VARARGS, "Fix IMA signatures in an RPM"},
 };
 
 #if PY_MAJOR_VERSION == 2

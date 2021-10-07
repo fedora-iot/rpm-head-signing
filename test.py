@@ -7,6 +7,7 @@ import sys
 import unittest
 
 import rpm_head_signing
+import rpm_head_signing.fix_signatures
 import rpm_head_signing.verify_rpm
 
 
@@ -200,6 +201,77 @@ class TestRpmHeadSigning(unittest.TestCase):
         args = rpm_head_signing.verify_rpm.get_args().parse_args(args)
         self.assertFalse(rpm_head_signing.verify_rpm.main(args))
 
+    def test_fix_signatures(self):
+        pkgname = "readline-8.1-4.el9.i686.rpm"
+        copy(
+            os.path.join(self.asset_dir, pkgname),
+            os.path.join(self.tmpdir, pkgname),
+        )
+        result = rpm_head_signing.fix_signatures.fix_ima_signatures(
+            os.path.join(self.tmpdir, pkgname),
+            dry_run=True,
+        )
+        self.assertEqual(result, rpm_head_signing.fix_signatures.CHANGED_IMA_SIG_LENGTH)
+        # We did a dry-run, this should not have changed the RPM
+        self.compare_files(
+            os.path.join(self.asset_dir, pkgname),
+            os.path.join(self.tmpdir, pkgname),
+        )
+        result = rpm_head_signing.fix_signatures.fix_ima_signatures(
+            os.path.join(self.tmpdir, pkgname),
+            dry_run=False,
+        )
+        self.assertEqual(result, rpm_head_signing.fix_signatures.CHANGED_IMA_SIG_LENGTH)
+        # Now we did an actual fix, so re-running the fixer should return no changes
+        result = rpm_head_signing.fix_signatures.fix_ima_signatures(
+            os.path.join(self.tmpdir, pkgname),
+            dry_run=True,
+        )
+        self.assertEqual(result, rpm_head_signing.fix_signatures.CHANGED_NONE)
+        res = subprocess.Popen(
+            [
+                "rpm",
+                "--dbpath",
+                self.tmpdir,
+                "-Kv",
+                os.path.join(self.tmpdir, pkgname),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        res = res.communicate()[0]
+        self.assertTrue(b"SHA1 digest: OK" in res)
+        self.assertTrue(b"Header V3 RSA" in res)
+        rpm_head_signing.get_rpm_ima_signature_info(
+            os.path.join(self.tmpdir, pkgname),
+        )
+
+    def test_fix_signatures_valgrind(self):
+        pkgname = "readline-8.1-4.el9.i686.rpm"
+        copy(
+            os.path.join(self.asset_dir, pkgname),
+            os.path.join(self.tmpdir, pkgname),
+        )
+        cmd = [sys.executable, "test_fix.py", os.path.join(self.tmpdir, pkgname)]
+        result = rpm_head_signing.fix_signatures.fix_ima_signatures(
+            os.path.join(self.tmpdir, pkgname),
+            dry_run=True,
+        )
+        self.assertEqual(result, rpm_head_signing.fix_signatures.CHANGED_IMA_SIG_LENGTH)
+        # We did a dry-run, this should not have changed the RPM
+        self.compare_files(
+            os.path.join(self.asset_dir, pkgname),
+            os.path.join(self.tmpdir, pkgname),
+        )
+        self._run_with_valgrind(cmd + ["active"])
+        self._check_valgrind_log()
+        # Now we did an actual fix, so re-running the fixer should return no changes
+        result = rpm_head_signing.fix_signatures.fix_ima_signatures(
+            os.path.join(self.tmpdir, pkgname),
+            dry_run=True,
+        )
+        self.assertEqual(result, rpm_head_signing.fix_signatures.CHANGED_NONE)
+
     def test_insert_ima_valgrind_normal(self):
         self._test_insert_ima_valgrind("normal", "15f712be")
 
@@ -212,45 +284,26 @@ class TestRpmHeadSigning(unittest.TestCase):
     def test_insert_ima_valgrind_splice_header_nonhdrsigned(self):
         self._test_insert_ima_valgrind("splice_header", "9ab51e50", nonhdrsigned=True)
 
-    def _test_insert_ima_valgrind(self, insert_mode, rpm_keyid, nonhdrsigned=False):
+    def _run_with_valgrind(self, command):
         if os.environ.get("SKIP_VALGRIND"):
             raise unittest.SkipTest("Valgrind tests are disabled")
-        valgrind_logfile = os.environ.get(
+        self.valgrind_logfile = os.environ.get(
             "VALGRIND_LOG_FILE",
             "%s/valgrind.log" % self.tmpdir,
         )
+        cmd = [
+            "valgrind",
+            "--tool=memcheck",
+            "--track-fds=yes",
+            "--leak-check=full",
+            "--track-origins=yes",
+            "--log-file=%s" % self.valgrind_logfile,
+            "--",
+        ] + command
+        subprocess.check_call(cmd)
 
-        def insert_cb(pkg):
-            insert_command = [
-                "valgrind",
-                "--tool=memcheck",
-                "--track-fds=yes",
-                "--leak-check=full",
-                "--track-origins=yes",
-                "--log-file=%s" % valgrind_logfile,
-                "--",
-                sys.executable,
-                "test_insert.py",
-                insert_mode,
-            ]
-            if nonhdrsigned:
-                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.signed.rpm" % pkg)
-                sig_path = "none"
-            else:
-                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
-                sig_path = os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg)
-            subprocess.check_call(
-                insert_command
-                + [
-                    rpm_path,
-                    sig_path,
-                    os.path.join(self.asset_dir, "digests.out.signed"),
-                ]
-            )
-
-        self._ima_insertion_test(insert_cb, rpm_keyid, nonhdrsigned=nonhdrsigned)
-
-        with open(valgrind_logfile, "r") as logfile:
+    def _check_valgrind_log(self):
+        with open(self.valgrind_logfile, "r") as logfile:
             log = logfile.read()
         if os.environ.get("PRINT_VALGRIND_LOG"):
             print("---- START OF VALGRIND LOG ----")
@@ -263,6 +316,32 @@ class TestRpmHeadSigning(unittest.TestCase):
                 )
             else:
                 raise Exception("insertlib.c found in the Valgrind log")
+
+    def _test_insert_ima_valgrind(self, insert_mode, rpm_keyid, nonhdrsigned=False):
+        def insert_cb(pkg):
+            insert_command = [
+                sys.executable,
+                "test_insert.py",
+                insert_mode,
+            ]
+            if nonhdrsigned:
+                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.signed.rpm" % pkg)
+                sig_path = "none"
+            else:
+                rpm_path = os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
+                sig_path = os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg)
+            self._run_with_valgrind(
+                insert_command
+                + [
+                    rpm_path,
+                    sig_path,
+                    os.path.join(self.asset_dir, "digests.out.signed"),
+                ]
+            )
+
+        self._ima_insertion_test(insert_cb, rpm_keyid, nonhdrsigned=nonhdrsigned)
+
+        self._check_valgrind_log()
 
     def _add_gpg_key(self, key_file_name):
         subprocess.check_call(
