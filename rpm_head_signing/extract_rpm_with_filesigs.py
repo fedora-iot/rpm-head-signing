@@ -113,16 +113,7 @@ def _extract_filesigs(rpm_path):
             % (len(diridxs), len(basenames))
         )
 
-    # filesiglen_hdr = sighdr.get(RPMSIGTAG_FILESIGNATURELENGTH)
-    # if not filesiglen_hdr:
-    #    raise Exception("No file signature length found on %s" % rpm_path)
-
-    # filesiglen = len(filesigs[0])
-    # if (filesiglen * 2) != filesiglen_hdr:
-    #    raise Exception(
-    #        "Invalid filesiglen (%d) for filesiglen_hdr (%d)"
-    #        % (filesiglen, filesiglen_hdr)
-    #    )
+    filesiglen_hdr = sighdr.get(RPMSIGTAG_FILESIGNATURELENGTH)
 
     signatures = {}
 
@@ -130,6 +121,11 @@ def _extract_filesigs(rpm_path):
         basename = basenames[i]
         dirname = dirnames[diridxs[i]]
         filesig = filesigs[i]
+        if filesiglen_hdr and (len(filesig) * 2 != filesiglen_hdr):
+            raise Exception(
+                "Invalid filesiglen (%d) for filesig (%d)"
+                % (filesiglen_hdr, len(filesig))
+            )
         if sys.version_info.major == 2:
             filesig = bytes(filesig)
         path = os.path.join(dirname, basename)
