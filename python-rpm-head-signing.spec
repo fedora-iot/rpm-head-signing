@@ -15,7 +15,7 @@
 %global srcname rpm_head_signing
 
 Name:           python-rpm-head-signing
-Version:        1.6
+Version:        1.7
 Release:        1%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
@@ -152,6 +152,9 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 
 
 %changelog
+* Mon Oct 25 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.7-1
+- fix: remove the LENGTH header again
+
 * Thu Oct 7 2021 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.6-1
 - fix: add the LENGTH header for IMA signatures
 - feat: add a fix_ima_signatures method to fix missing length headers
