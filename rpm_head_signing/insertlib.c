@@ -209,12 +209,12 @@ insert_ima_signatures(Header sigh, Header h, PyObject *ima_digest_lookup)
         }
     }
 
-    rpmtdReset(&td);
+    /* rpmtdReset(&td);
     td.tag = RPMSIGTAG_FILESIGNATURELENGTH;
     td.type = RPM_INT32_TYPE;
     td.data = &siglen;
     td.count = 1;
-    headerPut(sigh, &td, HEADERPUT_DEFAULT);
+    headerPut(sigh, &td, HEADERPUT_DEFAULT); */
 
     rc = RPMRC_OK;
 
@@ -665,6 +665,9 @@ out:
 static bool
 insert_ima_siglen(Header *sigh, int *siglen)
 {
+    PyErr_SetString(PyExc_Exception, "Not implemented");
+    return false;
+
     struct rpmtd_s td;
 
     rpmtdReset(&td);
