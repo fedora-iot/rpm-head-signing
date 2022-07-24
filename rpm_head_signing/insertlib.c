@@ -11,6 +11,7 @@
 #include <rpm/rpmstring.h>
 #include <rpm/rpmfileutil.h>
 #include <rpm/rpmfi.h>
+#include <rpm/rpmpgp.h>
 
 // Functions that are in librpm but are not in the headers
 // This one function is identical from 4.11 onwards...

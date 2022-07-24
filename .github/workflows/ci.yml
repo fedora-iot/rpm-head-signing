@@ -66,7 +66,7 @@ jobs:
 
   tests_centos_8:
     runs-on: ubuntu-latest
-    container: centos:8
+    container: quay.io/centos/centos:stream8
     steps:
       - uses: actions/checkout@v2
 
