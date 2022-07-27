@@ -7,6 +7,9 @@ from koji import (
     find_rpm_sighdr,
     RPM_TAG_FILEDIGESTALGO,
     RPM_FILEDIGESTALGO_IDS,
+    multibyte,
+    _ord,
+    RPM_HEADER_MAGIC,
 )
 
 
@@ -50,6 +53,22 @@ def check_header_signable(data):
         raise NonHeaderSignablePackage("This package cannot be headersigned")
 
 
+def _real_rpm_hdr_size(hdr, by_koji):
+    if hdr[0:3] != RPM_HEADER_MAGIC:
+        raise Exception("Header extraction failed: Invalid header magic")
+    data = [_ord(x) for x in hdr[8:16]]
+    il = multibyte(data[0:4])
+    dl = multibyte(data[4:8])
+    hdrsize = 8 + 16 * il + dl
+    # Add the lead bit (magic, version and 4 reserved bytes)
+    hdrsize = hdrsize + 8
+
+    if (hdrsize > (by_koji + 8)) or (hdrsize < (by_koji - 8)):
+        raise Exception("Improbable hdrsize: %d (koji gave %d)" % (hdrsize, by_koji))
+
+    return hdrsize
+
+
 def extract_header(input_path, header_out_path, digest_out_path):
     (sig_start, sig_size) = find_rpm_sighdr(input_path)
     hdr_start = sig_start + sig_size
@@ -63,6 +82,8 @@ def extract_header(input_path, header_out_path, digest_out_path):
     with open(input_path, "rb") as f:
         f.seek(hdr_start)
         hdrcts = f.read(hdr_size)
+        real_hdr_size = _real_rpm_hdr_size(hdrcts, hdr_size)
+        hdrcts = hdrcts[:real_hdr_size]
         check_header_signable(hdrcts)
 
         with open(header_out_path, "wb") as of:
