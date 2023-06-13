@@ -53,7 +53,7 @@ def check_header_signable(data):
 def extract_header(input_path, header_out_path, digest_out_path):
     (sig_start, sig_size) = find_rpm_sighdr(input_path)
     hdr_start = sig_start + sig_size
-    hdr_size = rpm_hdr_size(input_path, hdr_start)
+    hdr_size = rpm_hdr_size(input_path, hdr_start, pad=False)
 
     if digest_out_path:
         rpm_hdr = get_rpm_header(input_path)
