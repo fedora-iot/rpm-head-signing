@@ -19,7 +19,6 @@ jobs:
   metadata:
     targets:
       - fedora-all
-      - epel-7-x86_64
       - epel-8-x86_64
 - job: propose_downstream
   trigger: release
