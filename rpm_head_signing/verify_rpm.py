@@ -116,7 +116,7 @@ def main(args):
             )
             logging.debug("Extracted RPM, verifying signatures...")
 
-            for (where, _, fnames) in os.walk(extracted_dir):
+            for where, _, fnames in os.walk(extracted_dir):
                 for fname in fnames:
                     file_path = os.path.join(where, fname)
                     if os.path.islink(file_path):
