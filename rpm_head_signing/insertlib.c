@@ -778,6 +778,7 @@ out:
 static PyMethodDef InsertLibMethods[] = {
     {"insert_signatures", insert_signatures, METH_VARARGS, "Insert signatures into an RPM"},
     {"fix_ima_signatures", fix_ima_signatures, METH_VARARGS, "Fix IMA signatures in an RPM"},
+    {NULL, NULL, 0, NULL},
 };
 
 #if PY_MAJOR_VERSION == 2
