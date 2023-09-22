@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from tempfile import TemporaryFile
 import logging
 import subprocess
