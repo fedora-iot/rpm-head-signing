@@ -83,6 +83,7 @@ Summary:        %{summary}
 
 %if %{undefined python_enable_dependency_generator} && %{undefined python_disable_dependency_generator}
 # Put manual requires here:
+Requires:       python%{python3_pkgversion}-cryptography
 Requires:       python%{python3_pkgversion}-koji
 Requires:       python%{python3_pkgversion}-six
 Requires:       python%{python3_pkgversion}-xattr
