@@ -18,6 +18,14 @@ elif rpm_version[1] == 11:
 else:
     raise Exception("Unsupported RPM version %s" % rpm_version)
 
+requires = [
+    "cryptography",
+    "koji",
+    "six",
+    "xattr",
+    "rpm",
+]
+
 insertlib = Extension(
     "insertlib",
     libraries=["rpm", "rpmio"],
@@ -30,6 +38,7 @@ setup(
     name="rpm_head_signing",
     version="1.7.2",
     packages=["rpm_head_signing"],
+    install_requires=requires,
     ext_package="rpm_head_signing",
     ext_modules=[insertlib],
     entry_points={
