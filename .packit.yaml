@@ -3,10 +3,10 @@ specfile_path: python-rpm-head-signing.spec
 synced_files:
     - python-rpm-head-signing.spec
     - .packit.yaml
-create_pr: false
 sync_changelog: true
 
 upstream_package_name: rpm-head-signing
+upstream_tag_template: v{version}
 upstream_project_url: https://github.com/fedora-iot/rpm-head-signing
 downstream_package_name: python-rpm-head-signing
 
@@ -19,7 +19,35 @@ jobs:
   metadata:
     targets:
       - fedora-all
+      - epel-9-x86_64
       - epel-8-x86_64
+
 - job: propose_downstream
   trigger: release
 
+- job: sync_from_downstream
+  trigger: commit
+
+- job: propose_downstream
+  trigger: release
+  dist_git_branches:
+    - fedora-all
+    - epel-9
+
+- job: tests
+  trigger: pull_request
+  targets:
+    - fedora-all
+    - epel-9
+
+- job: koji_build
+  trigger: commit
+  dist_git_branches:
+    - fedora-all
+    - epel-9
+
+- job: bodhi_update
+  trigger: commit
+  dist_git_branches:
+    - fedora-all
+    - epel-9
