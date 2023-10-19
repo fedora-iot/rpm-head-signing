@@ -21,7 +21,6 @@ else:
 requires = [
     "cryptography",
     "koji",
-    "six",
     "xattr",
     "rpm",
 ]

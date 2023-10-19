@@ -85,7 +85,6 @@ Summary:        %{summary}
 # Put manual requires here:
 Requires:       python%{python3_pkgversion}-cryptography
 Requires:       python%{python3_pkgversion}-koji
-Requires:       python%{python3_pkgversion}-six
 Requires:       python%{python3_pkgversion}-xattr
 Requires:       python%{python3_pkgversion}-rpm
 %endif
