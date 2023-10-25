@@ -82,3 +82,23 @@ jobs:
 
       - name: Run tests
         run: PRINT_VALGRIND_LOG=1 python3 test.py
+
+  tests_centos_9:
+    runs-on: ubuntu-latest
+    container: quay.io/centos/centos:stream9
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install deps
+        run: |
+          dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+          crb enable
+          dnf install -y python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind python3-pyxattr crypto-policies-scripts
+          update-crypto-policies --set DEFAULT:SHA1
+
+      - name: Build insertlib
+        run: |
+          python3 setup.py build_ext -i
+
+      - name: Run tests
+        run: PRINT_VALGRIND_LOG=1 python3 test.py

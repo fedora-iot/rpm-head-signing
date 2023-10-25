@@ -22,9 +22,6 @@ jobs:
       - epel-9-x86_64
       - epel-8-x86_64
 
-- job: propose_downstream
-  trigger: release
-
 - job: sync_from_downstream
   trigger: commit
 
