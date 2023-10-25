@@ -35,7 +35,7 @@ insertlib = Extension(
 
 setup(
     name="rpm_head_signing",
-    version="1.7.2",
+    version="1.7.4",
     packages=["rpm_head_signing"],
     install_requires=requires,
     ext_package="rpm_head_signing",

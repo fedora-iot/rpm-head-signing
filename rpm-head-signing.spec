@@ -10,7 +10,7 @@
 %global srcname rpm_head_signing
 
 Name:           rpm-head-signing
-Version:        1.7.2
+Version:        1.7.4
 Release:        1%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
@@ -75,6 +75,10 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 
 
 %changelog
+* Wed Oct 25 2023 Peter Robinson <pbrobinson@fedoraproject.org> - 1.7.4-1
+- Update to 1.7.4
+- Upstream and package fixes
+
 * Fri Sep 22 2023 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.7.2-1
 - fix: add sentinel to insertlib to prevent segfault
 
