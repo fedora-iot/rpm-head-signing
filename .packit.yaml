@@ -1,6 +1,6 @@
 specfile_path: rpm-head-signing.spec
 
-synced_files:
+files_to_sync:
     - rpm-head-signing.spec
     - .packit.yaml
 sync_changelog: true
@@ -16,11 +16,10 @@ actions:
 jobs:
 - job: copr_build
   trigger: pull_request
-  metadata:
-    targets:
-      - fedora-all
-      - epel-9-x86_64
-      - epel-8-x86_64
+  targets:
+    - fedora-all
+    - epel-9-x86_64
+    - epel-8-x86_64
 
 - job: sync_from_downstream
   trigger: commit
