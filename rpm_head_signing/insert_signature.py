@@ -22,7 +22,7 @@ def _fix_sig_size_byteorder(signature):
         )
 
 
-def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=False):
+def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=False, hdr_path=None):
     """
     Insert a signature back into an RPM.
 
@@ -41,14 +41,10 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
     else:
         rpm_signature = None
 
+    ima_signature_lookup = None
+
     # Add IMA signature record
-    if ima_presigned_path is None:
-        return insertlib_insert_signatures(
-            return_header,
-            rpm_path,
-            rpm_signature,
-        )
-    else:
+    if ima_presigned_path is not None:
         ima_signature_lookup = {}
         with open(ima_presigned_path, "r") as sigpath:
             for line in sigpath.readlines():
@@ -60,12 +56,13 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
                     ima_signature_lookup[algo] = {}
                 ima_signature_lookup[algo][digest.lower()] = signature
 
-        return insertlib_insert_signatures(
-            return_header,
-            rpm_path,
-            rpm_signature,
-            ima_signature_lookup,
-        )
+    return insertlib_insert_signatures(
+        return_header,
+        rpm_path,
+        rpm_signature,
+        ima_signature_lookup,
+        hdr_path,
+    )
 
 
 def _main():

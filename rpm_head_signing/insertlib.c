@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include <asm/byteorder.h>
-
 #include <rpm/rpmtypes.h>
 #include <rpm/rpmlib.h>
 #include <rpm/rpmstring.h>
@@ -354,12 +353,14 @@ insert_signatures(PyObject *self, PyObject *args)
     const char *rpm_path;
     PyObject *signature = NULL;
     PyObject *ima_lookup = NULL;
+    const char *hdr_path = NULL;
     PyObject *sig_hdr_magic = NULL;
     PyObject *sig_hdr = NULL;
     PyObject *sig_hdr_pad = NULL;
     PyObject *sig_hdr_padded = NULL;
     char *msg = NULL;
     FD_t rpm_fd = NULL;
+    FD_t hdr_fd = NULL;
     off_t sigStart = 0;
     Header sigh = NULL;
     off_t headerStart = 0;
@@ -367,7 +368,7 @@ insert_signatures(PyObject *self, PyObject *args)
     pgpDigParams sigp = NULL;
     rpmtd sigtd = NULL;
 
-    if (!PyArg_ParseTuple(args, "isO|O:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup))
+    if (!PyArg_ParseTuple(args, "izO|Oz:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup, &hdr_path))
         return NULL;
 
     if (signature == Py_None) {
@@ -390,20 +391,56 @@ insert_signatures(PyObject *self, PyObject *args)
         goto out;
     }
 
-    rpm_fd = Fopen(rpm_path, "r+.ufdio");
-    if (rpm_fd == NULL || Ferror(rpm_fd)) {
-        PyErr_Format(PyExc_Exception, "Error opening RPM file: %s", Fstrerror(rpm_fd));
+    if ((rpm_path == NULL) == (hdr_path == NULL)) {
+        PyErr_SetString(PyExc_Exception, "Exactly one of rpm_path or hdr_path must be provided");
         goto out;
     }
+    if (rpm_path != NULL) {
+        rpm_fd = Fopen(rpm_path, "r+.ufdio");
+        if (rpm_fd == NULL || Ferror(rpm_fd)) {
+            PyErr_Format(PyExc_Exception, "Error opening RPM file: %s", Fstrerror(rpm_fd));
+            goto out;
+        }
 
-    if (!read_rpm(rpm_fd, &sigStart, &sigh, &headerStart, &h)) {
+        if (!read_rpm(rpm_fd, &sigStart, &sigh, &headerStart, &h)) {
+            goto out;
+        }
+    }
+    if (hdr_path != NULL && !return_header) {
+        PyErr_SetString(PyExc_Exception, "Can only return signature header blob when using extracted header");
         goto out;
+    }
+    if (hdr_path != NULL) {
+        hdr_fd = Fopen(hdr_path, "r+ufdio");
+        if (hdr_fd == NULL || Ferror(hdr_fd)) {
+            PyErr_Format(PyExc_Exception, "Error opening header file: %s", Fstrerror(hdr_fd));
+            goto out;
+        }
+
+        h = headerRead(hdr_fd, HEADER_MAGIC_YES);
+        if (h == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error reading header from header file");
+            goto out;
+        }
+        sigh = headerNew();
+        if (sigh == NULL) {
+            PyErr_SetString(PyExc_Exception, "Error allocating memory for new signature header");
+            goto out;
+        }
     }
 
     unloadImmutableRegion(&sigh, RPMTAG_HEADERSIGNATURES);
 #ifndef RPM_411
     unsigned int origSigSize = headerSizeof(sigh, HEADER_MAGIC_YES);
 #endif
+
+    // Insert IMA signatures
+    if (ima_lookup != NULL) {
+        if (!insert_ima_signatures(sigh, h, ima_lookup)) {
+            // This function sets its own exceptions
+            goto out;
+        }
+    }
 
     if (signature != NULL) {
         // Insert v4 signature header
@@ -442,14 +479,6 @@ insert_signatures(PyObject *self, PyObject *args)
         // For some reason, rpmRC isn't used here, and 0 - failure, 1 - success
         if (headerPut(sigh, sigtd, HEADERPUT_DEFAULT) != 1) {
             PyErr_SetString(PyExc_Exception, "Error setting signature header");
-            goto out;
-        }
-    }
-
-    // Insert IMA signatures
-    if (ima_lookup != NULL) {
-        if (!insert_ima_signatures(sigh, h, ima_lookup)) {
-            // This function sets its own exceptions
             goto out;
         }
     }
@@ -554,6 +583,7 @@ insert_signatures(PyObject *self, PyObject *args)
 out:
     if (sigp != NULL) pgpDigParamsFree(sigp);
     if (rpm_fd) Fclose(rpm_fd);
+    if (hdr_fd) Fclose(hdr_fd);
 
     Py_CLEAR(sig_hdr_magic);
     Py_CLEAR(sig_hdr);
