@@ -3,11 +3,11 @@ import subprocess
 
 rpm_version = subprocess.check_output(["rpm", "--version"])
 # Example: RPM version 4.16.90
-rpm_version = rpm_version.split(b" ")[2].split(b".")
+rpm_version_ = rpm_version.split(b" ")[2].split(b".")
 # Ignore the last bit, which could be e.g. 0-beta1
-rpm_version = tuple(map(int, rpm_version[:2]))
+rpm_version = tuple(map(int, rpm_version_[:2]))
 if rpm_version[0] != 4:
-    raise Exception("RPM version %s is not major version 4" % rpm_version)
+    raise Exception("RPM version %s is not major version 4" % rpm_version_)
 ext_defines = []
 if rpm_version[1] >= 15:
     ext_defines.append(("RPM_415", None))
@@ -16,7 +16,7 @@ elif rpm_version[1] == 14:
 elif rpm_version[1] == 11:
     ext_defines.append(("RPM_411", None))
 else:
-    raise Exception("Unsupported RPM version %s" % rpm_version)
+    raise Exception("Unsupported RPM version %s" % rpm_version_)
 
 requires = [
     "cryptography",
