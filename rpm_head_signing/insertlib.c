@@ -17,6 +17,10 @@
 // This one function is identical from 4.11 onwards...
 int rpmWriteSignature(FD_t fd, Header sigh);
 
+#if defined(RPM_6)
+    #define RPMTAG_PAYLOADDIGEST RPMTAG_PAYLOADSHA256
+#endif
+
 #if defined(RPM_415)
 
     // There are 4.15 versions that don't have this define

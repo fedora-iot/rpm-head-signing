@@ -9,11 +9,13 @@ rpm_version = tuple(map(int, rpm_version_[:2]))
 if rpm_version[0] < 4:
     raise Exception("RPM version %s is not major version 4+" % rpm_version_)
 ext_defines = []
-if rpm_version[1] >= 15:
+if rpm_version[:2] >= (5, 90):
+    ext_defines.append(("RPM_6", None))
+if rpm_version[:2] >= (4, 15):
     ext_defines.append(("RPM_415", None))
-elif rpm_version[1] == 14:
+elif rpm_version[:2] == (4, 14):
     ext_defines.append(("RPM_414", None))
-elif rpm_version[1] == 11:
+elif rpm_version[:2] == (4, 11):
     ext_defines.append(("RPM_411", None))
 else:
     raise Exception("Unsupported RPM version %s" % rpm_version_)
