@@ -17,7 +17,33 @@
 // This one function is identical from 4.11 onwards...
 int rpmWriteSignature(FD_t fd, Header sigh);
 
-#if defined(RPM_415)
+
+#if defined(RPM_60)
+    #define RPMTAG_PAYLOADDIGEST RPMTAG_PAYLOADSHA256
+    #define RPMTAG_PAYLOADDIGESTALT 5097
+
+    int _Z17rpmWriteSignatureP4FD_sP13headerToken_s(FD_t fd, Header sigh);
+    int rpmWriteSignature(FD_t fd, Header sigh)
+    {
+	return _Z17rpmWriteSignatureP4FD_sP13headerToken_s(fd, sigh);
+    }
+
+    int _Z11rpmLeadReadP4FD_sPPc(FD_t fd, char **emsg);
+    rpmRC rpmLeadRead(FD_t fd, char **emsg) {
+	return _Z11rpmLeadReadP4FD_sPPc(fd, emsg);
+    }
+
+    int _Z12rpmLeadWriteP4FD_sP13headerToken_s(FD_t fd, Header h);
+    rpmRC rpmLeadWrite(FD_t fd, Header h) {
+        return _Z12rpmLeadWriteP4FD_sP13headerToken_s(fd, h);
+    }
+
+    int _Z16rpmReadSignatureP4FD_sPP13headerToken_sPPc(FD_t, Header *sighp, char **msg);
+    rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg) {
+	return _Z16rpmReadSignatureP4FD_sPP13headerToken_sPPc(fd, sighp, msg);
+    }
+
+#elif defined(RPM_415)
 
     // There are 4.15 versions that don't have this define
     #define RPMTAG_PAYLOADDIGESTALT 5097
@@ -232,7 +258,7 @@ static bool read_rpm(FD_t rpm_fd, off_t *sigStart, Header *sigh, off_t *headerSt
 {
     char *msg;
 
-#if defined(RPM_415)
+#if defined(RPM_415) || defined(RPM_60)
     if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
 #elif defined(RPM_411)
     if (rpmLeadRead(rpm_fd, NULL, NULL, &msg) != RPMRC_OK) {

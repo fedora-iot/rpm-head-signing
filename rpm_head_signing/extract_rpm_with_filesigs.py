@@ -14,13 +14,13 @@ rpm_version = subprocess.check_output(["rpm", "--version"])
 rpm_version = rpm_version.split(b" ")[2].split(b".")
 # Ignore the last bit, which could be e.g. 0-beta1
 rpm_version = tuple(map(int, rpm_version[:2]))
-if rpm_version[0] != 4:
-    raise Exception("RPM version %s is not major version 4" % rpm_version)
+if rpm_version[0] < 4:
+    raise Exception("RPM version %s is not major version 4" % (rpm_version,))
 
 
 def _extract_rpm(rpm_path, output_path):
     # To deal with zstd on RPM 4.11
-    if rpm_version[1] == 11:
+    if rpm_version[0] == 4 and rpm_version[1] == 11:
         rpm2cpio = "./test_assets/rpm2cpio.sh"
     else:
         rpm2cpio = "rpm2cpio"
