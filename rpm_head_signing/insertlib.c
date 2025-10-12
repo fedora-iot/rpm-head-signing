@@ -17,6 +17,8 @@
 // This one function is identical from 4.11 onwards...
 int rpmWriteSignature(FD_t fd, Header sigh);
 
+#define RPMSIGTAG_OPENPGP RPMTAG_SIG_BASE+22
+
 
 #if defined(RPM_60)
     #define RPMTAG_PAYLOADDIGEST RPMTAG_PAYLOADSHA256
@@ -379,6 +381,7 @@ insert_signatures(PyObject *self, PyObject *args)
     bool success = false;
     const char *rpm_path;
     PyObject *signature = NULL;
+    char *signature_v6 = NULL;
     PyObject *ima_lookup = NULL;
     PyObject *sig_hdr_magic = NULL;
     PyObject *sig_hdr = NULL;
@@ -392,8 +395,9 @@ insert_signatures(PyObject *self, PyObject *args)
     Header h = NULL;
     pgpDigParams sigp = NULL;
     rpmtd sigtd = NULL;
+    rpmtd sigtd_v6 = NULL;
 
-    if (!PyArg_ParseTuple(args, "isO|O:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup))
+    if (!PyArg_ParseTuple(args, "isO|Oz:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup, &signature_v6))
         return NULL;
 
     if (signature == Py_None) {
@@ -471,6 +475,31 @@ insert_signatures(PyObject *self, PyObject *args)
             goto out;
         }
     }
+
+    if (signature_v6 != NULL) {
+        // Insert an RPMv6 signature
+        char **arr = (char **)malloc(1 * sizeof(*arr));
+        if (arr == NULL) {
+                PyErr_SetString(PyExc_Exception, "Error allocating memory");
+                goto out;
+        }
+        arr[0] = signature_v6;
+
+        sigtd_v6 = rpmtdNew();
+        sigtd_v6->tag = RPMSIGTAG_OPENPGP;
+        sigtd_v6->type = RPM_STRING_ARRAY_TYPE;
+        sigtd_v6->count = 1;
+        sigtd_v6->data = arr;
+        sigtd_v6->flags = RPMTD_ALLOCED|RPMTD_PTR_ALLOCED;
+        sigtd_v6->ix = -1;
+        sigtd_v6->size = 0;
+
+        // For some reason, rpmRC isn't used here, and 0 - failure, 1 - success
+        if (headerPut(sigh, sigtd_v6, HEADERPUT_APPEND) != 1) {
+            PyErr_SetString(PyExc_Exception, "Error setting signature v6 header");
+            goto out;
+        }
+   }
 
     // Insert IMA signatures
     if (ima_lookup != NULL) {
@@ -590,8 +619,10 @@ out:
     free(msg);
 #ifdef RPM_411
     if (sigtd != NULL && sigtd->data != NULL) free(sigtd->data);
+    if (sigtd_v6 != NULL && sigtd_v6->data != NULL) free(sigtd_v6->data);
 #endif
     if (sigtd != NULL) rpmtdFree(sigtd);
+    if (sigtd_v6 != NULL) rpmtdFree(sigtd_v6);
 
     if (success) {
         if (return_value == NULL) {

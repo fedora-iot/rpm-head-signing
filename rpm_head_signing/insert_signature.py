@@ -22,7 +22,9 @@ def _fix_sig_size_byteorder(signature):
         )
 
 
-def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=False):
+def insert_signature(
+    rpm_path, sig_path, ima_presigned_path=None, return_header=False, sig_v6_path=None
+):
     """
     Insert a signature back into an RPM.
 
@@ -41,12 +43,21 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
     else:
         rpm_signature = None
 
+    if sig_v6_path:
+        # Add OPENGPG (v6) Header record
+        with open(sig_v6_path, "rb") as sigfile:
+            rpm_v6_signature = sigfile.read()
+    else:
+        rpm_v6_signature = None
+
     # Add IMA signature record
     if ima_presigned_path is None:
         return insertlib_insert_signatures(
             return_header,
             rpm_path,
             rpm_signature,
+            None,
+            rpm_v6_signature,
         )
     else:
         ima_signature_lookup = {}
@@ -65,6 +76,7 @@ def insert_signature(rpm_path, sig_path, ima_presigned_path=None, return_header=
             rpm_path,
             rpm_signature,
             ima_signature_lookup,
+            rpm_v6_signature,
         )
 
 
