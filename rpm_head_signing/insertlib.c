@@ -17,7 +17,35 @@
 // This one function is identical from 4.11 onwards...
 int rpmWriteSignature(FD_t fd, Header sigh);
 
-#if defined(RPM_415)
+#define RPMSIGTAG_OPENPGP RPMTAG_SIG_BASE+22
+
+
+#if defined(RPM_60)
+    #define RPMTAG_PAYLOADDIGEST RPMTAG_PAYLOADSHA256
+    #define RPMTAG_PAYLOADDIGESTALT 5097
+
+    int _Z17rpmWriteSignatureP4FD_sP13headerToken_s(FD_t fd, Header sigh);
+    int rpmWriteSignature(FD_t fd, Header sigh)
+    {
+	return _Z17rpmWriteSignatureP4FD_sP13headerToken_s(fd, sigh);
+    }
+
+    int _Z11rpmLeadReadP4FD_sPPc(FD_t fd, char **emsg);
+    rpmRC rpmLeadRead(FD_t fd, char **emsg) {
+	return _Z11rpmLeadReadP4FD_sPPc(fd, emsg);
+    }
+
+    int _Z12rpmLeadWriteP4FD_sP13headerToken_s(FD_t fd, Header h);
+    rpmRC rpmLeadWrite(FD_t fd, Header h) {
+        return _Z12rpmLeadWriteP4FD_sP13headerToken_s(fd, h);
+    }
+
+    int _Z16rpmReadSignatureP4FD_sPP13headerToken_sPPc(FD_t, Header *sighp, char **msg);
+    rpmRC rpmReadSignature(FD_t fd, Header * sighp, char ** msg) {
+	return _Z16rpmReadSignatureP4FD_sPP13headerToken_sPPc(fd, sighp, msg);
+    }
+
+#elif defined(RPM_415)
 
     // There are 4.15 versions that don't have this define
     #define RPMTAG_PAYLOADDIGESTALT 5097
@@ -232,7 +260,7 @@ static bool read_rpm(FD_t rpm_fd, off_t *sigStart, Header *sigh, off_t *headerSt
 {
     char *msg;
 
-#if defined(RPM_415)
+#if defined(RPM_415) || defined(RPM_60)
     if (rpmLeadRead(rpm_fd, &msg) != RPMRC_OK) {
 #elif defined(RPM_411)
     if (rpmLeadRead(rpm_fd, NULL, NULL, &msg) != RPMRC_OK) {
@@ -353,6 +381,7 @@ insert_signatures(PyObject *self, PyObject *args)
     bool success = false;
     const char *rpm_path;
     PyObject *signature = NULL;
+    char *signature_v6 = NULL;
     PyObject *ima_lookup = NULL;
     PyObject *sig_hdr_magic = NULL;
     PyObject *sig_hdr = NULL;
@@ -366,8 +395,9 @@ insert_signatures(PyObject *self, PyObject *args)
     Header h = NULL;
     pgpDigParams sigp = NULL;
     rpmtd sigtd = NULL;
+    rpmtd sigtd_v6 = NULL;
 
-    if (!PyArg_ParseTuple(args, "isO|O:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup))
+    if (!PyArg_ParseTuple(args, "isO|Oz:insert_signatures", &return_header, &rpm_path, &signature, &ima_lookup, &signature_v6))
         return NULL;
 
     if (signature == Py_None) {
@@ -445,6 +475,31 @@ insert_signatures(PyObject *self, PyObject *args)
             goto out;
         }
     }
+
+    if (signature_v6 != NULL) {
+        // Insert an RPMv6 signature
+        char **arr = (char **)malloc(1 * sizeof(*arr));
+        if (arr == NULL) {
+                PyErr_SetString(PyExc_Exception, "Error allocating memory");
+                goto out;
+        }
+        arr[0] = signature_v6;
+
+        sigtd_v6 = rpmtdNew();
+        sigtd_v6->tag = RPMSIGTAG_OPENPGP;
+        sigtd_v6->type = RPM_STRING_ARRAY_TYPE;
+        sigtd_v6->count = 1;
+        sigtd_v6->data = arr;
+        sigtd_v6->flags = RPMTD_ALLOCED|RPMTD_PTR_ALLOCED;
+        sigtd_v6->ix = -1;
+        sigtd_v6->size = 0;
+
+        // For some reason, rpmRC isn't used here, and 0 - failure, 1 - success
+        if (headerPut(sigh, sigtd_v6, HEADERPUT_APPEND) != 1) {
+            PyErr_SetString(PyExc_Exception, "Error setting signature v6 header");
+            goto out;
+        }
+   }
 
     // Insert IMA signatures
     if (ima_lookup != NULL) {
@@ -564,8 +619,10 @@ out:
     free(msg);
 #ifdef RPM_411
     if (sigtd != NULL && sigtd->data != NULL) free(sigtd->data);
+    if (sigtd_v6 != NULL && sigtd_v6->data != NULL) free(sigtd_v6->data);
 #endif
     if (sigtd != NULL) rpmtdFree(sigtd);
+    if (sigtd_v6 != NULL) rpmtdFree(sigtd_v6);
 
     if (success) {
         if (return_value == NULL) {

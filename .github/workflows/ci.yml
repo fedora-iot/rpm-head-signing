@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          lfs: "true"
 
       - name: Install apt deps
         run: |
@@ -51,11 +53,13 @@ jobs:
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
-      - uses: actions/checkout@v2
-
       - name: Install deps
         run: |
-          dnf install -y python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind
+          dnf install -y python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind git git-lfs ima-evm-utils
+
+      - uses: actions/checkout@v2
+        with:
+          lfs: "true"
 
       - name: Build insertlib
         run: |
@@ -64,17 +68,17 @@ jobs:
       - name: Run tests
         run: PRINT_VALGRIND_LOG=1 python3 test.py
 
-  tests_centos_8:
+  tests_fedora_rawhide:
     runs-on: ubuntu-latest
-    container: quay.io/centos/centos:stream8
+    container: fedora:rawhide
     steps:
-      - uses: actions/checkout@v2
-
       - name: Install deps
         run: |
-          dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-          dnf install -y python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind
-          pip3 install pyxattr
+          dnf install -y python3-koji python3-pyxattr python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind git git-lfs ima-evm-utils
+
+      - uses: actions/checkout@v2
+        with:
+          lfs: "true"
 
       - name: Build insertlib
         run: |
@@ -87,14 +91,16 @@ jobs:
     runs-on: ubuntu-latest
     container: quay.io/centos/centos:stream9
     steps:
-      - uses: actions/checkout@v2
-
       - name: Install deps
         run: |
           dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
           crb enable
-          dnf install -y python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind python3-pyxattr crypto-policies-scripts
+          dnf install -y python3-koji python3-rpm make gcc rpm-sign cpio python3-setuptools rpm-devel python3-devel python3-cryptography valgrind python3-pyxattr crypto-policies-scripts git git-lfs
           update-crypto-policies --set DEFAULT:SHA1
+
+      - uses: actions/checkout@v2
+        with:
+          lfs: "true"
 
       - name: Build insertlib
         run: |

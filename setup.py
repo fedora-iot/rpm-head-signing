@@ -6,15 +6,21 @@ rpm_version = subprocess.check_output(["rpm", "--version"])
 rpm_version = rpm_version.split(b" ")[2].split(b".")
 # Ignore the last bit, which could be e.g. 0-beta1
 rpm_version = tuple(map(int, rpm_version[:2]))
-if rpm_version[0] != 4:
-    raise Exception("RPM version %s is not major version 4" % rpm_version)
+if rpm_version[0] < 4:
+    raise Exception(
+        "RPM version %s is less than major version 4" % rpm_version.join(".")
+    )
 ext_defines = []
-if rpm_version[1] >= 15:
-    ext_defines.append(("RPM_415", None))
-elif rpm_version[1] == 14:
-    ext_defines.append(("RPM_414", None))
-elif rpm_version[1] == 11:
-    ext_defines.append(("RPM_411", None))
+if rpm_version[0] == 4:
+    if rpm_version[1] >= 15:
+        ext_defines.append(("RPM_415", None))
+    elif rpm_version[1] == 14:
+        ext_defines.append(("RPM_414", None))
+    elif rpm_version[1] == 11:
+        ext_defines.append(("RPM_411", None))
+elif rpm_version[0] == 6:
+    if rpm_version[1] == 0:
+        ext_defines.append(("RPM_60", None))
 else:
     raise Exception("Unsupported RPM version %s" % rpm_version)
 
@@ -25,9 +31,13 @@ requires = [
     "rpm",
 ]
 
+libraries = ["rpm", "rpmio"]
+if rpm_version[:2] >= (5, 90):
+    libraries.append("rpmsign")
+
 insertlib = Extension(
     "insertlib",
-    libraries=["rpm", "rpmio"],
+    libraries=libraries,
     sources=["rpm_head_signing/insertlib.c"],
     extra_compile_args=["-Wall", "-Werror"],
     define_macros=ext_defines,

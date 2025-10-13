@@ -11,6 +11,20 @@ import rpm_head_signing.fix_signatures
 import rpm_head_signing.verify_rpm
 
 
+rpm_version = subprocess.check_output(["rpm", "--version"])
+# Example: RPM version 4.16.90
+rpm_version = rpm_version.split(b" ")[2].split(b".")
+# Ignore the last bit, which could be e.g. 0-beta1
+rpm_version = tuple(map(int, rpm_version[:2]))
+if rpm_version[0] < 4:
+    raise Exception("RPM version %s is not major version 4" % (rpm_version,))
+header_msg = b"Header OpenPGP V3 RSA"
+check_digest = "SHA256"
+if rpm_version[0] < 6:
+    check_digest = "SHA1"
+    header_msg = b"Header V3 RSA"
+
+
 class TestRpmHeadSigning(unittest.TestCase):
     pkg_numbers = ["1", "2"]
 
@@ -119,8 +133,8 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
             )
-            self.assertTrue(b"SHA1 digest: OK" in res)
-            self.assertFalse(b"Header V3 RSA" in res)
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf8") in res)
+            self.assertFalse(header_msg in res)
             rpm_head_signing.insert_signature(
                 os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 os.path.join(self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg),
@@ -134,8 +148,8 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
                 ],
             )
-            self.assertTrue(b"SHA1 digest: OK" in res)
-            self.assertTrue(b"Header V3 RSA" in res)
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf-8") in res)
+            self.assertTrue(header_msg in res)
             self.assertTrue(b"15f712be: ok" in res.lower())
 
             result = rpm_head_signing.determine_rpm_status(
@@ -241,8 +255,8 @@ class TestRpmHeadSigning(unittest.TestCase):
             stderr=subprocess.PIPE,
         )
         res = res.communicate()[0]
-        self.assertTrue(b"SHA1 digest: OK" in res)
-        self.assertTrue(b"Header V3 RSA" in res)
+        self.assertTrue(f"{check_digest} digest: OK".encode("utf-8") in res)
+        self.assertTrue(header_msg in res)
         rpm_head_signing.get_rpm_ima_signature_info(
             os.path.join(self.tmpdir, pkgname),
         )
@@ -382,8 +396,8 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, rpm_filename),
                 ],
             )
-            self.assertTrue(b"SHA1 digest: OK" in res)
-            self.assertFalse(b"Header V3 RSA" in res)
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf-8") in res)
+            self.assertFalse(header_msg in res)
 
             insert_command(pkg)
 
@@ -396,7 +410,7 @@ class TestRpmHeadSigning(unittest.TestCase):
                     os.path.join(self.tmpdir, rpm_filename),
                 ],
             )
-            self.assertTrue(b"SHA1 digest: OK" in res)
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf-8") in res)
             msg = ("%s: ok" % rpm_keyid).encode("utf8")
             self.assertTrue(msg in res.lower())
 
