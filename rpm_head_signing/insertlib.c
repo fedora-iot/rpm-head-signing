@@ -415,7 +415,7 @@ insert_signatures(PyObject *self, PyObject *args)
         goto out;
     }
 
-    if (signature == NULL && ima_lookup == NULL) {
+    if (signature == NULL && ima_lookup == NULL && signature_v6 == NULL) {
         PyErr_SetString(PyExc_Exception, "No signature or ima_lookup provided");
         goto out;
     }
@@ -490,7 +490,7 @@ insert_signatures(PyObject *self, PyObject *args)
         sigtd_v6->type = RPM_STRING_ARRAY_TYPE;
         sigtd_v6->count = 1;
         sigtd_v6->data = arr;
-        sigtd_v6->flags = RPMTD_ALLOCED|RPMTD_PTR_ALLOCED;
+        sigtd_v6->flags = RPMTD_ALLOCED;
         sigtd_v6->ix = -1;
         sigtd_v6->size = 0;
 

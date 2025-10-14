@@ -47,6 +47,8 @@ def insert_signature(
         # Add OPENGPG (v6) Header record
         with open(sig_v6_path, "rb") as sigfile:
             rpm_v6_signature = sigfile.read()
+        rpm_v6_signature = base64.b64encode(rpm_v6_signature)
+        rpm_v6_signature = rpm_v6_signature.decode("utf-8")
     else:
         rpm_v6_signature = None
 
