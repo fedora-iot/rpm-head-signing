@@ -10,8 +10,8 @@
 %global srcname rpm_head_signing
 
 Name:           rpm-head-signing
-Version:        1.7.5
-Release:        1%{?dist}
+Version:        1.7.6
+Release:        2%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
 URL:            https://github.com/fedora-iot/rpm-head-signing
@@ -75,6 +75,9 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 
 
 %changelog
+* Tue Oct 14 2025 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.7.6-2
+- Update to 1.7.6
+
 * Mon Oct 13 2025 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.7.5-1
 - Update to 1.7.5
 
