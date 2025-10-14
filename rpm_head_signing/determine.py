@@ -1,4 +1,5 @@
 import rpm
+import subprocess
 from koji import (
     find_rpm_sighdr,
     rpm_hdr_size,
@@ -12,10 +13,20 @@ from .extract_rpm_with_filesigs import (
     _get_header_type_8,
 )
 
+SUPPORTS_V6_HDR = False
+rpm_version = subprocess.check_output(["rpm", "--version"])
+# Example: RPM version 4.16.90
+rpm_version = rpm_version.split(b" ")[2].split(b".")
+# Ignore the last bit, which could be e.g. 0-beta1
+rpm_version = tuple(map(int, rpm_version[:2]))
+if rpm_version[0] >= 5:
+    SUPPORTS_V6_HDR = True
+
 
 class DetermineResult(object):
     is_head_only_signable = None
     is_head_only_signed = None
+    is_head_only_v6_signed = None
     is_signed = None
     is_ima_signed = None
 
@@ -33,6 +44,10 @@ def determine_rpm_status(rpm_path):
         hdr = f.read(hdr_size)
         hdr = RawHeader(hdr)
 
+    extra_fields = ()
+    if SUPPORTS_V6_HDR:
+        extra_fields += ("openpgp",)
+
     fields = get_header_fields(
         rpm_path,
         (
@@ -42,7 +57,8 @@ def determine_rpm_status(rpm_path):
             "sigpgp",
             "rsaheader",
             "dsaheader",
-        ),
+        )
+        + extra_fields,
     )
 
     filesignatures = sighdr.index.get(RPMSIGTAG_FILESIGNATURES)
@@ -69,11 +85,18 @@ def determine_rpm_status(rpm_path):
         and fields["siggpg"] is None
         and fields["sigpgp"] is None
     )
+    if SUPPORTS_V6_HDR:
+        result.is_head_only_v6_signed = (
+            fields["openpgp"] is not None
+            and fields["siggpg"] is None
+            and fields["sigpgp"] is None
+        )
     result.is_signed = (
         fields["rsaheader"] is not None
         or fields["dsaheader"] is not None
         or fields["siggpg"] is not None
         or fields["sigpgp"] is not None
+        or bool(result.is_head_only_v6_signed)
     )
     result.is_ima_signed = filesignatures is not None
 

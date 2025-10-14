@@ -1,5 +1,6 @@
 from tempfile import mkdtemp
 from shutil import rmtree, copy
+import base64
 import os
 import os.path
 import subprocess
@@ -20,9 +21,11 @@ if rpm_version[0] < 4:
     raise Exception("RPM version %s is not major version 4" % (rpm_version,))
 header_msg = b"Header OpenPGP V3 RSA"
 check_digest = "SHA256"
+SUPPORTS_V6_HDR = True
 if rpm_version[0] < 6:
     check_digest = "SHA1"
     header_msg = b"Header V3 RSA"
+    SUPPORTS_V6_HDR = False
 
 
 class TestRpmHeadSigning(unittest.TestCase):
@@ -159,6 +162,64 @@ class TestRpmHeadSigning(unittest.TestCase):
             self.assertTrue(result.is_head_only_signed)
             self.assertTrue(result.is_signed)
             self.assertFalse(result.is_ima_signed)
+
+    def test_insert_no_ima_v6(self):
+        self._add_gpg_key("gpgkey.asc")
+        for pkg in self.pkg_numbers:
+            copy(
+                os.path.join(self.asset_dir, "testpkg-%s.rpm" % pkg),
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+            )
+            res = subprocess.check_output(
+                [
+                    "rpm",
+                    "--dbpath",
+                    self.tmpdir,
+                    "-Kv",
+                    os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+                ],
+            )
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf8") in res)
+            self.assertFalse(header_msg in res)
+            rpm_head_signing.insert_signature(
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+                None,
+                sig_v6_path=os.path.join(
+                    self.asset_dir, "testpkg-%s.rpm.hdr.sig" % pkg
+                ),
+            )
+            res = subprocess.check_output(
+                [
+                    "rpm",
+                    "--dbpath",
+                    self.tmpdir,
+                    "-Kv",
+                    os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg),
+                ],
+            )
+            self.assertTrue(f"{check_digest} digest: OK".encode("utf-8") in res)
+
+            if not SUPPORTS_V6_HDR:
+                # Continue to the next package
+                # This means we don't validate the signature, but at least we ensure the inserting itself doesn't fail.
+                continue
+
+            self.assertTrue(header_msg in res)
+            self.assertTrue(b"15f712be: ok" in res.lower())
+
+            result = rpm_head_signing.determine_rpm_status(
+                os.path.join(self.tmpdir, "testpkg-%s.rpm" % pkg)
+            )
+            self.assertTrue(result.is_head_only_signable)
+            self.assertTrue(result.is_head_only_v6_signed)
+            self.assertTrue(result.is_signed)
+            self.assertFalse(result.is_ima_signed)
+
+        if not SUPPORTS_V6_HDR:
+            # We want to mark the overall test as skipped, even if we did execute some things
+            raise unittest.SkipTest(
+                "Skipping v6 test",
+            )
 
     def test_insert_ima_presigned(self):
         def insert_cb(pkg):
