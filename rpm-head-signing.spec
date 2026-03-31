@@ -11,11 +11,15 @@
 
 Name:           rpm-head-signing
 Version:        1.7.6
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Small python module to extract RPM header and file digests
 License:        MIT
 URL:            https://github.com/fedora-iot/rpm-head-signing
 Source0:        %url/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
+
+# https://fedoraproject.org/wiki/Changes/EncourageI686LeafRemoval
+# Plus, python3dist(xattr) is missing on i686
+ExcludeArch:    %{ix86}
 
 BuildRequires:  gcc
 BuildRequires:  openssl-devel
@@ -24,7 +28,9 @@ BuildRequires:  ima-evm-utils-devel
 BuildRequires:  rpm-devel
 BuildRequires:  rpm-sign
 BuildRequires:  cpio
+%ifarch %{valgrind_arches}
 BuildRequires:  valgrind
+%endif
 BuildRequires:  zstd
 BuildRequires:  python%{python3_pkgversion}-devel
 BuildRequires:  python%{python3_pkgversion}-setuptools
@@ -32,6 +38,12 @@ BuildRequires:  python%{python3_pkgversion}-koji
 BuildRequires:  python%{python3_pkgversion}-rpm
 BuildRequires:  python%{python3_pkgversion}-cryptography
 BuildRequires:  python%{python3_pkgversion}-pyxattr
+
+Requires:  python%{python3_pkgversion}-koji
+Requires:  python%{python3_pkgversion}-rpm
+Requires:  python%{python3_pkgversion}-cryptography
+Requires:  python%{python3_pkgversion}-pyxattr
+
 %{?python_provide:%python_provide python3-%{pkgname}}
 
 %description
@@ -49,12 +61,15 @@ for lib in rpm_head_signing/*.py; do
 done
 
 
-%build
-%py3_build
+%generate_buildrequires
+%pyproject_buildrequires
 
+%build
+%pyproject_wheel
 
 %install
-%py3_install
+%pyproject_install
+%pyproject_save_files %{srcname}
 
 
 %if %{with tests}
@@ -66,15 +81,16 @@ PYTHONPATH=%{buildroot}%{python3_sitearch} SKIP_IMA_LIVE_CHECK=true python3 test
 %endif
 
 
-%files
+%files -f %{pyproject_files}
 %license LICENSE
 %doc README.md
 %{_bindir}/verify-rpm-ima-signatures
-%{python3_sitearch}/%{srcname}/
-%{python3_sitearch}/%{srcname}-*/
 
 
 %changelog
+* Tue Mar 31 2026 Peter Robinson <pbrobinson@fedoraproject.org> - 1.7.6-3
+- Update spec for new packaging standards
+
 * Tue Oct 14 2025 Patrick Uiterwijk <patrick@puiterwijk.org> - 1.7.6-2
 - Update to 1.7.6
 
